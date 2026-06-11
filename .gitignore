@@ -1,0 +1,11 @@
+
+
+
+evtx_samples/
+results/*
+!results/.gitkeep
+checkpoints/*
+!checkpoints/.gitkeep
+
+lesson/
+

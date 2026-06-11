@@ -1,0 +1,10 @@
+데이터셋 생성
+python threat_agent/build_dataset.py --evtx-root evtx_samples --evtx-lib-dir evtx_samples/EVTX_ATT&CK_Metadata -o results/threat_agent_data.json
+커버리지 확인
+python -m threat_agent.analyze_coverage --dataset results/threat_agent_data.json
+베이스라인
+python -m threat_agent.baselines --dataset results/threat_agent_data.json --split test --episodes 100 --policy both
+DQN
+python -m threat_agent.train_dqn --dataset results/threat_agent_data.json --episodes 2000 --save-model checkpoints/threat_agent_dqn.pt
+REINFORCE
+python -m threat_agent.train_reinforce --dataset results/threat_agent_data.json --episodes 3000 --save-model checkpoints/threat_agent_reinforce.pt
