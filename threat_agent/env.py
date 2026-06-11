@@ -54,8 +54,16 @@ class ThreatInvestigationEnv:
         # deterministic split by sorted source_file for reproducibility
         episodes = sorted(episodes, key=lambda x: x["source_file"])
         n = len(episodes)
-        n_train = int(n * split_ratio[0])
-        n_val = int(n * split_ratio[1])
+        if n < 3:
+            n_train, n_val = n, 0
+        else:
+            n_train = max(1, int(n * split_ratio[0]))
+            n_val = max(1, int(n * split_ratio[1]))
+            if n_train + n_val >= n:
+                n_val = max(1, n - n_train - 1)
+                if n_val <= 0:
+                    n_train = n - 2
+                    n_val = 1
         if split == "train":
             self.episodes = episodes[:n_train]
         elif split == "val":

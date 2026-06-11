@@ -8,3 +8,9 @@ DQN
 python -m threat_agent.train_dqn --dataset results/threat_agent_data.json --episodes 2000 --save-model checkpoints/threat_agent_dqn.pt
 REINFORCE
 python -m threat_agent.train_reinforce --dataset results/threat_agent_data.json --episodes 3000 --save-model checkpoints/threat_agent_reinforce.pt
+A2C
+python -m threat_agent.train_a2c --dataset results/threat_agent_data.json --episodes 2500 --save-model checkpoints/threat_agent_a2c.pt
+Tabular 비교군(MC/SARSA/Q-learning)
+python -m threat_agent.train_tabular --dataset results/threat_agent_data.json --algorithm all --episodes 3000 --output results/tabular_metrics.json
+전체 비교 실행
+python -m threat_agent.experiment_compare --dataset results/threat_agent_data.json

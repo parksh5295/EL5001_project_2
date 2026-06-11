@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import random
 from collections import deque
 from dataclasses import dataclass
@@ -107,6 +108,7 @@ def parse_args():
     p.add_argument("--eval-every", type=int, default=200)
     p.add_argument("--eval-episodes", type=int, default=80)
     p.add_argument("--save-model", type=Path, default=Path("checkpoints/threat_agent_dqn.pt"))
+    p.add_argument("--metrics-output", type=Path, default=Path("results/dqn_metrics.json"))
     return p.parse_args()
 
 
@@ -194,9 +196,27 @@ def main():
     torch.save(policy_net.state_dict(), args.save_model)
     print(f"Saved model: {args.save_model.resolve()}")
 
+    val_final = evaluate(policy_net, val_env, args.eval_episodes, device)
+    test_final = evaluate(policy_net, test_env, args.eval_episodes, device)
     print("Final evaluation")
-    print(f"val:  {evaluate(policy_net, val_env, args.eval_episodes, device)}")
-    print(f"test: {evaluate(policy_net, test_env, args.eval_episodes, device)}")
+    print(f"val:  {val_final}")
+    print(f"test: {test_final}")
+
+    args.metrics_output.parent.mkdir(parents=True, exist_ok=True)
+    args.metrics_output.write_text(
+        json.dumps(
+            {
+                "algorithm": "dqn",
+                "val": val_final,
+                "test": test_final,
+                "episodes": args.episodes,
+                "seed": args.seed,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(f"Saved metrics: {args.metrics_output.resolve()}")
 
 
 if __name__ == "__main__":

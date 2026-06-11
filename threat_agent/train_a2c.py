@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train a policy-gradient agent (REINFORCE) for Threat Investigation Agent."""
+"""Train A2C baseline for Threat Investigation Agent."""
 
 from __future__ import annotations
 
@@ -16,37 +16,29 @@ import torch.optim as optim
 from threat_agent.env import EnvConfig, ThreatInvestigationEnv
 
 
-class PolicyNet(nn.Module):
+class ActorCritic(nn.Module):
     def __init__(self, state_size: int, action_size: int, hidden: int = 128):
         super().__init__()
-        self.net = nn.Sequential(
+        self.backbone = nn.Sequential(
             nn.Linear(state_size, hidden),
             nn.ReLU(),
             nn.Linear(hidden, hidden),
             nn.ReLU(),
-            nn.Linear(hidden, action_size),
         )
+        self.actor = nn.Linear(hidden, action_size)
+        self.critic = nn.Linear(hidden, 1)
 
     def forward(self, x):
-        return self.net(x)
+        h = self.backbone(x)
+        return self.actor(h), self.critic(h).squeeze(-1)
 
 
 def masked_categorical(logits: torch.Tensor, mask: torch.Tensor):
-    masked_logits = logits.masked_fill(mask <= 0, -1e9)
-    return torch.distributions.Categorical(logits=masked_logits)
+    return torch.distributions.Categorical(logits=logits.masked_fill(mask <= 0, -1e9))
 
 
-def discounted_returns(rewards: list[float], gamma: float) -> list[float]:
-    out = []
-    g = 0.0
-    for r in reversed(rewards):
-        g = r + gamma * g
-        out.append(g)
-    return list(reversed(out))
-
-
-def evaluate(policy: PolicyNet, env: ThreatInvestigationEnv, episodes: int, device: torch.device):
-    policy.eval()
+def evaluate(model: ActorCritic, env: ThreatInvestigationEnv, episodes: int, device: torch.device):
+    model.eval()
     correct = 0
     total_reward = 0.0
     total_steps = 0
@@ -57,9 +49,10 @@ def evaluate(policy: PolicyNet, env: ThreatInvestigationEnv, episodes: int, devi
             while not done:
                 s_t = torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0)
                 mask = torch.tensor(info["action_mask"], dtype=torch.float32, device=device).unsqueeze(0)
-                dist = masked_categorical(policy(s_t), mask)
-                a = int(torch.argmax(dist.logits, dim=1).item())
-                s, r, terminated, truncated, info = env.step(a)
+                logits, _ = model(s_t)
+                dist = masked_categorical(logits, mask)
+                action = int(torch.argmax(dist.logits, dim=1).item())
+                s, r, terminated, truncated, info = env.step(action)
                 total_reward += r
                 total_steps += 1
                 done = terminated or truncated
@@ -73,18 +66,19 @@ def evaluate(policy: PolicyNet, env: ThreatInvestigationEnv, episodes: int, devi
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train REINFORCE on Threat Investigation Agent.")
+    p = argparse.ArgumentParser(description="Train A2C on Threat Investigation Agent.")
     p.add_argument("--dataset", type=Path, default=Path("results/threat_agent_data.json"))
-    p.add_argument("--episodes", type=int, default=3000)
+    p.add_argument("--episodes", type=int, default=2500)
     p.add_argument("--max-steps", type=int, default=12)
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--entropy-coef", type=float, default=0.01)
+    p.add_argument("--value-coef", type=float, default=0.5)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--eval-every", type=int, default=300)
+    p.add_argument("--eval-every", type=int, default=250)
     p.add_argument("--eval-episodes", type=int, default=80)
-    p.add_argument("--save-model", type=Path, default=Path("checkpoints/threat_agent_reinforce.pt"))
-    p.add_argument("--metrics-output", type=Path, default=Path("results/reinforce_metrics.json"))
+    p.add_argument("--save-model", type=Path, default=Path("checkpoints/threat_agent_a2c.pt"))
+    p.add_argument("--metrics-output", type=Path, default=Path("results/a2c_metrics.json"))
     return p.parse_args()
 
 
@@ -108,57 +102,65 @@ def main():
     val_env = ThreatInvestigationEnv(args.dataset, split="val", config=cfg)
     test_env = ThreatInvestigationEnv(args.dataset, split="test", config=cfg)
 
-    policy = PolicyNet(train_env.state_size, train_env.action_size).to(device)
-    optimizer = optim.Adam(policy.parameters(), lr=args.lr)
+    model = ActorCritic(train_env.state_size, train_env.action_size).to(device)
+    optim_ac = optim.Adam(model.parameters(), lr=args.lr)
 
     for ep in range(1, args.episodes + 1):
         s, info = train_env.reset()
         done = False
         log_probs: list[torch.Tensor] = []
+        values: list[torch.Tensor] = []
         rewards: list[float] = []
         entropies: list[torch.Tensor] = []
+        dones: list[float] = []
 
         while not done:
             s_t = torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0)
             mask = torch.tensor(info["action_mask"], dtype=torch.float32, device=device).unsqueeze(0)
-            dist = masked_categorical(policy(s_t), mask)
+            logits, value = model(s_t)
+            dist = masked_categorical(logits, mask)
             action = int(dist.sample().item())
 
-            ns, r, terminated, truncated, info = train_env.step(action)
-            log_probs.append(dist.log_prob(torch.tensor(action, device=device)))
-            entropies.append(dist.entropy())
-            rewards.append(float(r))
-            s = ns
+            ns, reward, terminated, truncated, info = train_env.step(action)
             done = terminated or truncated
 
-        returns = discounted_returns(rewards, args.gamma)
+            log_probs.append(dist.log_prob(torch.tensor(action, device=device)))
+            values.append(value.squeeze(0))
+            rewards.append(float(reward))
+            entropies.append(dist.entropy().squeeze(0))
+            dones.append(1.0 if done else 0.0)
+            s = ns
+
+        # bootstrap value at final state (0 for terminal)
+        returns = []
+        g = 0.0
+        for r, d in zip(reversed(rewards), reversed(dones)):
+            g = r + args.gamma * g * (1.0 - d)
+            returns.append(g)
+        returns = list(reversed(returns))
         returns_t = torch.tensor(returns, dtype=torch.float32, device=device)
-        # Normalize returns for lower variance (safe for short trajectories)
-        if returns_t.numel() > 1:
-            std = returns_t.std(unbiased=False)
-            returns_t = (returns_t - returns_t.mean()) / (std + 1e-8)
+        values_t = torch.stack(values)
+        logp_t = torch.stack(log_probs)
+        entropy_t = torch.stack(entropies)
 
-        policy_loss = []
-        entropy_loss = []
-        for lp, ret, ent in zip(log_probs, returns_t, entropies):
-            policy_loss.append(-lp * ret)
-            entropy_loss.append(-args.entropy_coef * ent)
-        loss = torch.stack(policy_loss).sum() + torch.stack(entropy_loss).sum()
+        advantages = returns_t - values_t
+        actor_loss = -(logp_t * advantages.detach()).mean()
+        critic_loss = advantages.pow(2).mean()
+        loss = actor_loss + args.value_coef * critic_loss - args.entropy_coef * entropy_t.mean()
 
-        optimizer.zero_grad()
+        optim_ac.zero_grad()
         loss.backward()
-        optimizer.step()
+        optim_ac.step()
 
         if ep % args.eval_every == 0:
-            val_result = evaluate(policy, val_env, args.eval_episodes, device)
+            val_result = evaluate(model, val_env, args.eval_episodes, device)
             print(f"Episode {ep} val={val_result}")
 
     args.save_model.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(policy.state_dict(), args.save_model)
+    torch.save(model.state_dict(), args.save_model)
     print(f"Saved model: {args.save_model.resolve()}")
-
-    val_final = evaluate(policy, val_env, args.eval_episodes, device)
-    test_final = evaluate(policy, test_env, args.eval_episodes, device)
+    val_final = evaluate(model, val_env, args.eval_episodes, device)
+    test_final = evaluate(model, test_env, args.eval_episodes, device)
     print("Final evaluation")
     print(f"val:  {val_final}")
     print(f"test: {test_final}")
@@ -167,7 +169,7 @@ def main():
     args.metrics_output.write_text(
         json.dumps(
             {
-                "algorithm": "reinforce",
+                "algorithm": "a2c",
                 "val": val_final,
                 "test": test_final,
                 "episodes": args.episodes,
@@ -182,3 +184,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
