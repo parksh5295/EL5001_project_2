@@ -1,9 +1,10 @@
 param(
-    [string]$EvtxRoot = "evtx_samples",
-    [string]$DatasetOut = "results/threat_agent_data.json",
+    [string]$InputEvents = "events.ndjson",
+    [string]$WeakLabeledOut = "results/events_weak_labeled.ndjson",
+    [string]$StreamOut = "results/stream_events.ndjson",
     [int]$Seed = 42,
     [int]$TabularEpisodes = 3000,
-    [int]$DeepEpisodes = 2000,
+    [int]$DeepEpisodes = 1500,
     [int]$EvalEpisodes = 100
 )
 
@@ -38,18 +39,27 @@ if (-not (Test-Path ".venv")) {
     }
 }
 
-Write-Host "[1/2] Build dataset -> $DatasetOut"
+Write-Host "[1/3] Weak label events -> $WeakLabeledOut"
 Invoke-Checked @(
-    "python", "-m", "pipenv", "run", "python", "threat_agent/build_dataset.py",
-    "--evtx-root", "$EvtxRoot",
-    "--evtx-lib-dir", "$EvtxRoot/EVTX_ATT&CK_Metadata",
-    "-o", "$DatasetOut"
+    "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.stream_labeler",
+    "--input", "$InputEvents",
+    "--output", "$WeakLabeledOut",
+    "--summary-json", "results/events_weak_label_summary.json"
 )
 
-Write-Host "[2/2] Run all comparison experiments"
+Write-Host "[2/3] Build stream episodes -> $StreamOut"
 Invoke-Checked @(
-    "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.experiment_compare",
-    "--dataset", "$DatasetOut",
+    "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.stream_builder",
+    "--input", "$WeakLabeledOut",
+    "--output", "$StreamOut",
+    "--summary-json", "results/stream_summary.json",
+    "--seed", "$Seed"
+)
+
+Write-Host "[3/3] Run stream comparison experiments"
+Invoke-Checked @(
+    "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.stream_experiment_compare",
+    "--stream-data", "$StreamOut",
     "--seed", "$Seed",
     "--tabular-episodes", "$TabularEpisodes",
     "--deep-episodes", "$DeepEpisodes",
@@ -57,5 +67,5 @@ Invoke-Checked @(
 )
 
 Write-Host "Done."
-Write-Host "Summary JSON: results/compare_summary.json"
-Write-Host "Summary CSV : results/compare_summary.csv"
+Write-Host "Summary JSON: results/stream_compare_summary.json"
+Write-Host "Summary CSV : results/stream_compare_summary.csv"

@@ -1,19 +1,19 @@
-데이터셋 생성
-python threat_agent/build_dataset.py --evtx-root evtx_samples --evtx-lib-dir evtx_samples/EVTX_ATT&CK_Metadata -o results/threat_agent_data.json
-커버리지 확인
-python -m threat_agent.analyze_coverage --dataset results/threat_agent_data.json
-베이스라인
-python -m threat_agent.baselines --dataset results/threat_agent_data.json --split test --episodes 100 --policy both
-DQN
-python -m threat_agent.train_dqn --dataset results/threat_agent_data.json --episodes 2000 --save-model checkpoints/threat_agent_dqn.pt
-REINFORCE
-python -m threat_agent.train_reinforce --dataset results/threat_agent_data.json --episodes 3000 --save-model checkpoints/threat_agent_reinforce.pt
-A2C
-python -m threat_agent.train_a2c --dataset results/threat_agent_data.json --episodes 2500 --save-model checkpoints/threat_agent_a2c.pt
-Tabular 비교군(MC/SARSA/Q-learning)
-python -m threat_agent.train_tabular --dataset results/threat_agent_data.json --algorithm all --episodes 3000 --output results/tabular_metrics.json
-전체 비교 실행
-python -m threat_agent.experiment_compare --dataset results/threat_agent_data.json
+이벤트 약라벨 생성
+python -m threat_agent.stream_labeler --input events.ndjson --output results/events_weak_labeled.ndjson
+준-현실형 스트림 생성
+python -m threat_agent.stream_builder --input results/events_weak_labeled.ndjson --output results/stream_events.ndjson
+스트림 RL 베이스라인
+python -m threat_agent.stream_baselines --stream-data results/stream_events.ndjson --split test --episodes 100 --policy both
+스트림 RL 학습(DQN)
+python -m threat_agent.train_stream_dqn --stream-data results/stream_events.ndjson --episodes 1500
+스트림 RL 학습(REINFORCE)
+python -m threat_agent.train_stream_reinforce --stream-data results/stream_events.ndjson --episodes 1500
+스트림 RL 학습(A2C)
+python -m threat_agent.train_stream_a2c --stream-data results/stream_events.ndjson --episodes 1500
+스트림 RL 학습(Tabular: MC/SARSA/Q-learning)
+python -m threat_agent.train_stream_tabular --stream-data results/stream_events.ndjson --algorithm all --episodes 3000 --output results/stream_tabular_metrics.json
+스트림 전체 비교 실행
+python -m threat_agent.stream_experiment_compare --stream-data results/stream_events.ndjson
 전체 one-shot 실행(.sh)
 bash ./run_all_compare.sh
 전체 one-shot 실행(PowerShell)
