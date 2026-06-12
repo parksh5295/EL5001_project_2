@@ -113,8 +113,6 @@ def label_event(event: dict) -> tuple[str, list[str], list[str]]:
 
     if eid_int in TACTIC_HINT_BY_EVENT_ID:
         tactics.append(TACTIC_HINT_BY_EVENT_ID[eid_int])
-    if _text(event.get("scenario_tactic")) and _text(event.get("scenario_tactic")) != "Unknown":
-        tactics.append(_text(event.get("scenario_tactic")))
 
     # Deduplicate while preserving order
     tactics = list(dict.fromkeys(tactics))

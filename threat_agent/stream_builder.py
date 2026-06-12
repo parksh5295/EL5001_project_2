@@ -153,13 +153,16 @@ def main():
                     attack_written += 1
 
                 stream_pos += 1
+                ev_for_stream = deepcopy(ev)
+                # Keep scenario tactic only as hidden ground truth (reward/eval), not as observation payload.
+                ev_for_stream.pop("scenario_tactic", None)
                 out = {
                     "stream_id": stream_id,
                     "stream_pos": stream_pos,
                     "synthetic_time": stream_pos,  # monotonic synthetic timestamp
                     "gt_attack_active": gt_attack_active,
                     "gt_tactic": gt_tactic,
-                    **ev,
+                    **ev_for_stream,
                 }
                 fout.write(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
                 fout.write("\n")
@@ -170,13 +173,16 @@ def main():
             while stream_pos < target_n:
                 stream_pos += 1
                 ev = deepcopy(rng.choice(background_pool))
+                ev_for_stream = deepcopy(ev)
+                # Keep scenario tactic only as hidden ground truth (reward/eval), not as observation payload.
+                ev_for_stream.pop("scenario_tactic", None)
                 out = {
                     "stream_id": stream_id,
                     "stream_pos": stream_pos,
                     "synthetic_time": stream_pos,
                     "gt_attack_active": 0,
                     "gt_tactic": "benign",
-                    **ev,
+                    **ev_for_stream,
                 }
                 fout.write(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
                 fout.write("\n")
