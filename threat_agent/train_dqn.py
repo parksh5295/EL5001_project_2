@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from threat_agent.env import EnvConfig, ThreatInvestigationEnv
+from threat_agent.metrics import EvalAccumulator
 
 
 class QNet(nn.Module):
@@ -67,28 +68,29 @@ def masked_argmax(q: np.ndarray, mask: np.ndarray) -> int:
 
 def evaluate(policy_net: QNet, env: ThreatInvestigationEnv, episodes: int, device: torch.device):
     policy_net.eval()
-    correct = 0
-    total_reward = 0.0
-    total_steps = 0
+    acc = EvalAccumulator(labels=env.tactics)
     with torch.no_grad():
         for _ in range(episodes):
             s, info = env.reset()
             done = False
+            ep_return = 0.0
+            ep_steps = 0
+            declared_step = None
+            pred = None
+            true = info["tactic"]
             while not done:
                 mask = np.array(info["action_mask"], dtype=np.float32)
                 q = policy_net(torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0))[0].cpu().numpy()
                 a = masked_argmax(q, mask)
                 s, r, terminated, truncated, info = env.step(a)
-                total_reward += r
-                total_steps += 1
+                ep_return += r
+                ep_steps += 1
+                if info.get("declared_tactic") is not None and declared_step is None:
+                    pred = info.get("declared_tactic")
+                    declared_step = ep_steps
                 done = terminated or truncated
-            if info.get("correct"):
-                correct += 1
-    return {
-        "accuracy": correct / episodes if episodes else 0.0,
-        "avg_return": total_reward / episodes if episodes else 0.0,
-        "avg_steps": total_steps / episodes if episodes else 0.0,
-    }
+            acc.add(true_label=true, pred_label=pred, steps=ep_steps, declared_step=declared_step, episode_return=ep_return)
+    return acc.summary()
 
 
 def parse_args():

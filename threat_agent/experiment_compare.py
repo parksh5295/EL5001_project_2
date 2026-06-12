@@ -146,8 +146,13 @@ def main():
                     "algorithm": algo,
                     "split": split_name,
                     "accuracy": metric["accuracy"],
+                    "balanced_accuracy": metric.get("balanced_accuracy"),
+                    "macro_f1": metric.get("macro_f1"),
                     "avg_return": metric["avg_return"],
                     "avg_steps": metric["avg_steps"],
+                    "declare_step1_ratio": metric.get("declare_step1_ratio"),
+                    "majority_baseline_accuracy": metric.get("majority_baseline_accuracy"),
+                    "majority_gain": metric.get("majority_gain"),
                 }
             )
     for algo, splits in summary["tabular"].items():
@@ -157,12 +162,31 @@ def main():
                     "algorithm": algo,
                     "split": split_name,
                     "accuracy": metric["accuracy"],
+                    "balanced_accuracy": metric.get("balanced_accuracy"),
+                    "macro_f1": metric.get("macro_f1"),
                     "avg_return": metric["avg_return"],
                     "avg_steps": metric["avg_steps"],
+                    "declare_step1_ratio": metric.get("declare_step1_ratio"),
+                    "majority_baseline_accuracy": metric.get("majority_baseline_accuracy"),
+                    "majority_gain": metric.get("majority_gain"),
                 }
             )
     with args.output_csv.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["algorithm", "split", "accuracy", "avg_return", "avg_steps"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "algorithm",
+                "split",
+                "accuracy",
+                "balanced_accuracy",
+                "macro_f1",
+                "avg_return",
+                "avg_steps",
+                "declare_step1_ratio",
+                "majority_baseline_accuracy",
+                "majority_gain",
+            ],
+        )
         writer.writeheader()
         writer.writerows(rows)
 

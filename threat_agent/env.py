@@ -19,6 +19,9 @@ class EnvConfig:
     max_steps: int = 12
     investigate_cost: float = 0.5
     invalid_action_penalty: float = 0.25
+    redundant_investigate_penalty: float = 0.1
+    new_evidence_reward: float = 0.5
+    duplicate_evidence_reward: float = 0.0
     correct_declare_reward: float = 10.0
     wrong_declare_penalty: float = 10.0
     reveal_success_prob: float = 1.0
@@ -86,6 +89,7 @@ class ThreatInvestigationEnv:
         self.done = False
         self.revealed_index = {c: 0 for c in CATEGORY_ORDER}
         self.revealed_event_ids: list[int] = []
+        self.evidence_signatures_seen: set[str] = set()
         self.last_reward = 0.0
         self.total_reward = 0.0
         self.investigate_count = 0
@@ -159,12 +163,22 @@ class ThreatInvestigationEnv:
             "total_reward": self.total_reward,
         }
 
+    def _card_signature(self, category: str, card: dict[str, Any]) -> str:
+        return "|".join(
+            [
+                category,
+                str(card.get("event_id")),
+                str(card.get("time")),
+                str(card.get("summary")),
+            ]
+        )
+
     def _investigate(self, category: str):
         assert self.current_episode is not None
         totals = self._card_totals()
         if self.revealed_index[category] >= totals[category]:
-            reward = -self.config.invalid_action_penalty
-            return reward, False, {"invalid_action": True, "category": category}
+            reward = -self.config.invalid_action_penalty - self.config.redundant_investigate_penalty
+            return reward, False, {"invalid_action": True, "category": category, "evidence_novel": False}
 
         reward = -self.config.investigate_cost
         if self.np_rng.random() <= self.config.reveal_success_prob:
@@ -172,9 +186,18 @@ class ThreatInvestigationEnv:
             self.revealed_index[category] += 1
             if isinstance(card.get("event_id"), int):
                 self.revealed_event_ids.append(card["event_id"])
-            info = {"revealed_card": card, "category": category}
+            sig = self._card_signature(category, card)
+            if sig not in self.evidence_signatures_seen:
+                self.evidence_signatures_seen.add(sig)
+                reward += self.config.new_evidence_reward
+                novel = True
+            else:
+                reward += self.config.duplicate_evidence_reward
+                novel = False
+            info = {"revealed_card": card, "category": category, "evidence_novel": novel}
         else:
-            info = {"reveal_failed": True, "category": category}
+            reward -= self.config.redundant_investigate_penalty
+            info = {"reveal_failed": True, "category": category, "evidence_novel": False}
 
         self.investigate_count += 1
         return reward, False, info

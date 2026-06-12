@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from threat_agent.metrics import EvalAccumulator
 
 def discretize_state(state: np.ndarray, bins: int = 10) -> tuple[int, ...]:
     """Discretize continuous state vector into a hashable tuple."""
@@ -154,25 +155,26 @@ class QLearningAgent(BaseTabularAgent):
 
 
 def evaluate_tabular(agent: BaseTabularAgent, env, episodes: int):
-    correct = 0
-    total_return = 0.0
-    total_steps = 0
+    acc = EvalAccumulator(labels=env.tactics)
     for _ in range(episodes):
         state, info = env.reset()
         done = False
+        ep_return = 0.0
+        ep_steps = 0
+        declared_step = None
+        pred = None
+        true = info["tactic"]
         while not done:
             key = agent.state_key(state)
             mask = np.array(info["action_mask"], dtype=np.float32)
             action = agent.greedy(key, mask)
             state, reward, terminated, truncated, info = env.step(action)
-            total_return += reward
-            total_steps += 1
+            ep_return += reward
+            ep_steps += 1
+            if info.get("declared_tactic") is not None and declared_step is None:
+                pred = info.get("declared_tactic")
+                declared_step = ep_steps
             done = terminated or truncated
-        if info.get("correct"):
-            correct += 1
-    return {
-        "accuracy": correct / episodes if episodes else 0.0,
-        "avg_return": total_return / episodes if episodes else 0.0,
-        "avg_steps": total_steps / episodes if episodes else 0.0,
-    }
+        acc.add(true_label=true, pred_label=pred, steps=ep_steps, declared_step=declared_step, episode_return=ep_return)
+    return acc.summary()
 
