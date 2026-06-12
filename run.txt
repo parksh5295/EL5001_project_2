@@ -14,3 +14,7 @@ Tabular 비교군(MC/SARSA/Q-learning)
 python -m threat_agent.train_tabular --dataset results/threat_agent_data.json --algorithm all --episodes 3000 --output results/tabular_metrics.json
 전체 비교 실행
 python -m threat_agent.experiment_compare --dataset results/threat_agent_data.json
+전체 one-shot 실행(.sh)
+bash ./run_all_compare.sh
+전체 one-shot 실행(PowerShell)
+.\run_all_compare.ps1
