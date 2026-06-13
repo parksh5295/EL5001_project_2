@@ -2,7 +2,7 @@ param(
     [string]$InputEvents = "events.ndjson",
     [string]$WeakLabeledOut = "results/events_weak_labeled.ndjson",
     [string]$StreamOut = "results/stream_events.ndjson",
-    [int]$NumStreams = 10000,
+    [int]$NumStreams = 100000,
     [int]$EventsPerStream = 200,
     [ValidateSet("source", "event")][string]$SplitMode = "source",
     [string]$SplitRatio = "0.7,0.15,0.15",
