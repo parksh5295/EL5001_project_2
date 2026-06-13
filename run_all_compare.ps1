@@ -2,6 +2,8 @@ param(
     [string]$InputEvents = "events.ndjson",
     [string]$WeakLabeledOut = "results/events_weak_labeled.ndjson",
     [string]$StreamOut = "results/stream_events.ndjson",
+    [int]$NumStreams = 10000,
+    [int]$EventsPerStream = 200,
     [ValidateSet("source", "event")][string]$SplitMode = "source",
     [string]$SplitRatio = "0.7,0.15,0.15",
     [int]$Seed = 42,
@@ -55,6 +57,8 @@ Invoke-Checked @(
     "--input", "$WeakLabeledOut",
     "--output", "$StreamOut",
     "--summary-json", "results/stream_summary.json",
+    "--num-streams", "$NumStreams",
+    "--events-per-stream", "$EventsPerStream",
     "--split-mode", "$SplitMode",
     "--split-ratio", "$SplitRatio",
     "--seed", "$Seed"

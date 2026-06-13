@@ -7,10 +7,12 @@ cd "$ROOT_DIR"
 INPUT_EVENTS="${1:-events.ndjson}"
 WEAK_LABELED_OUT="${2:-results/events_weak_labeled.ndjson}"
 STREAM_OUT="${3:-results/stream_events.ndjson}"
-SEED="${4:-42}"
-TABULAR_EPISODES="${5:-3000}"
-DEEP_EPISODES="${6:-1500}"
-EVAL_EPISODES="${7:-100}"
+NUM_STREAMS="${4:-10000}"
+EVENTS_PER_STREAM="${5:-200}"
+SEED="${6:-42}"
+TABULAR_EPISODES="${7:-3000}"
+DEEP_EPISODES="${8:-1500}"
+EVAL_EPISODES="${9:-100}"
 
 mkdir -p results checkpoints
 
@@ -25,6 +27,8 @@ pipenv run python -m threat_agent.stream_builder \
   --input "$WEAK_LABELED_OUT" \
   --output "$STREAM_OUT" \
   --summary-json results/stream_summary.json \
+  --num-streams "$NUM_STREAMS" \
+  --events-per-stream "$EVENTS_PER_STREAM" \
   --seed "$SEED"
 
 echo "[3/3] Run stream comparison experiments"
