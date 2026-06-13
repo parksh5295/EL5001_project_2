@@ -147,7 +147,18 @@ def evaluate(agent: BaseTab, env: StreamThreatEnv, episodes: int):
                 delay = info.get("detection_delay")
             done = t or tr
         if pred is None:
-            pred, true = "benign", "benign"
+            pred = "benign"
+            if info.get("first_attack_pos") is None:
+                true = "benign"
+            else:
+                true = next(
+                    (
+                        e.get("gt_tactic", "unknown_attack")
+                        for e in env.stream_events
+                        if int(e.get("gt_attack_active", 0)) == 1
+                    ),
+                    "unknown_attack",
+                )
         ev.add(true, pred, steps, declared_step, ep_return, info.get("first_attack_pos"), delay)
     return ev.summary()
 

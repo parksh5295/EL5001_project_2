@@ -85,7 +85,17 @@ def eval_policy(net: QNet, env: StreamThreatEnv, episodes: int, device: torch.de
                 done = terminated or truncated
             if pred is None:
                 pred = "benign"
-                true = "benign"
+                if info.get("first_attack_pos") is None:
+                    true = "benign"
+                else:
+                    true = next(
+                        (
+                            e.get("gt_tactic", "unknown_attack")
+                            for e in env.stream_events
+                            if int(e.get("gt_attack_active", 0)) == 1
+                        ),
+                        "unknown_attack",
+                    )
             ev.add(
                 true_label=true,
                 pred_label=pred,
