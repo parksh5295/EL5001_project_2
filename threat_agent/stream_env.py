@@ -82,7 +82,8 @@ class StreamThreatEnv:
         all_streams = []
         for sid, seq in by_stream.items():
             seq = sorted(seq, key=lambda x: int(x.get("stream_pos", 0)))
-            all_streams.append({"stream_id": sid, "events": seq})
+            stream_split = seq[0].get("dataset_split")
+            all_streams.append({"stream_id": sid, "events": seq, "dataset_split": stream_split})
         all_streams = sorted(all_streams, key=lambda x: x["stream_id"])
 
         # tactics from gt_tactic except benign
@@ -90,32 +91,40 @@ class StreamThreatEnv:
         self.tactics = tactic_set
         self.labels = ["benign"] + self.tactics
 
-        n = len(all_streams)
-        if n < 3:
-            n_train, n_val = n, 0
+        has_predefined_split = all(s.get("dataset_split") in {"train", "val", "test"} for s in all_streams)
+        if has_predefined_split:
+            if split not in {"train", "val", "test"}:
+                raise ValueError(f"Unknown split: {split}")
+            self.streams = [s for s in all_streams if s.get("dataset_split") == split]
+            if not self.streams:
+                raise ValueError(f"No streams found for split='{split}' in dataset_split-tagged data.")
         else:
-            n_train = max(1, int(n * split_ratio[0]))
-            n_val = max(1, int(n * split_ratio[1]))
-            # ensure at least one sample for test split
-            while n_train + n_val >= n and n_train > 1:
-                n_train -= 1
-            while n_train + n_val >= n and n_val > 1:
-                n_val -= 1
-            if n_train + n_val >= n:
-                n_train = max(1, n - 2)
-                n_val = 1
+            n = len(all_streams)
+            if n < 3:
+                n_train, n_val = n, 0
+            else:
+                n_train = max(1, int(n * split_ratio[0]))
+                n_val = max(1, int(n * split_ratio[1]))
+                # ensure at least one sample for test split
+                while n_train + n_val >= n and n_train > 1:
+                    n_train -= 1
+                while n_train + n_val >= n and n_val > 1:
+                    n_val -= 1
+                if n_train + n_val >= n:
+                    n_train = max(1, n - 2)
+                    n_val = 1
 
-        if split == "train":
-            self.streams = all_streams[:n_train]
-        elif split == "val":
-            self.streams = all_streams[n_train : n_train + n_val]
-        elif split == "test":
-            self.streams = all_streams[n_train + n_val :]
-        else:
-            raise ValueError(f"Unknown split: {split}")
-        if not self.streams:
-            # fallback for very small datasets: evaluate on full set
-            self.streams = all_streams
+            if split == "train":
+                self.streams = all_streams[:n_train]
+            elif split == "val":
+                self.streams = all_streams[n_train : n_train + n_val]
+            elif split == "test":
+                self.streams = all_streams[n_train + n_val :]
+            else:
+                raise ValueError(f"Unknown split: {split}")
+            if not self.streams:
+                # fallback for very small datasets: evaluate on full set
+                self.streams = all_streams
 
         self.event_id_bins = self.cfg.event_id_bins or DEFAULT_EVENT_ID_BINS
         # weak ratios(3) + tactic ratios + event histogram + progress(2)
