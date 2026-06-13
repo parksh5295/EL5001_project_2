@@ -34,15 +34,15 @@ DEFAULT_EVENT_ID_BINS = [
 class StreamEnvConfig:
     window_size: int = 25
     max_steps: int = 300
-    declare_attack_reward: float = 8.0
-    declare_benign_reward: float = 4.0
-    wrong_tactic_penalty: float = 6.0
-    false_alarm_penalty: float = 6.0
-    false_negative_penalty: float = 8.0
+    declare_attack_reward: float = 12.0
+    declare_benign_reward: float = 1.0
+    wrong_tactic_penalty: float = 10.0
+    false_alarm_penalty: float = 8.0
+    false_negative_penalty: float = 20.0
     wait_cost: float = 0.02
     wait_attack_extra_cost: float = 0.05
-    miss_penalty: float = 8.0
-    early_attack_bonus_scale: float = 1.5
+    miss_penalty: float = 20.0
+    early_attack_bonus_scale: float = 8.0
     event_id_bins: list[int] | None = None
     seed: int | None = None
 
