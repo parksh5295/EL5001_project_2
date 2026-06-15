@@ -75,6 +75,11 @@ if [[ ! -d ".venv" ]]; then
   bash "$ROOT_DIR/setup_pipenv.sh"
 fi
 
+if ! "${PIPENV[@]}" run python -c "import numpy, torch, six, hexdump" >/dev/null 2>&1; then
+  echo "[prep] .venv 의 핵심 패키지가 없어 setup_pipenv.sh 재실행"
+  bash "$ROOT_DIR/setup_pipenv.sh"
+fi
+
 if [[ "$SKIP_BUILD" != "true" ]]; then
   echo "[1/3] Weak label events -> ${WEAK_LABELED_OUT}"
   "${PIPENV[@]}" run python -m threat_agent.stream_labeler \

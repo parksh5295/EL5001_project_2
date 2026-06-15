@@ -38,7 +38,10 @@ if [[ -z "${PYTHON_BIN:-}" ]]; then
   exit 1
 fi
 
-if ! "$PYTHON_BIN" -c "import sys; sys.exit(0 if sys.version_info[:2]==(3,10) else 1)" >/dev/null 2>&1; then
+IS_PY310="false"
+if "$PYTHON_BIN" -c "import sys; sys.exit(0 if sys.version_info[:2]==(3,10) else 1)" >/dev/null 2>&1; then
+  IS_PY310="true"
+else
   echo "[warn] Python 3.10을 찾지 못해 fallback 사용: $PYTHON_BIN"
   echo "[warn] Pipfile 요구 버전(3.10)과 다를 수 있지만, sudo 없는 환경에서 진행합니다."
 fi
@@ -52,8 +55,19 @@ echo "[1/2] pipenv 가상환경 생성 (${PYTHON_BIN})"
 "${PIPENV[@]}" --clear >/dev/null
 "${PIPENV[@]}" --python "$PYTHON_BIN" >/dev/null
 
-echo "[2/2] Pipfile 의존성 설치"
-"${PIPENV[@]}" install
+if [[ "$IS_PY310" == "true" ]]; then
+  echo "[2/2] Pipfile 의존성 설치"
+  "${PIPENV[@]}" install
+else
+  FALLBACK_REQ="${ROOT_DIR}/requirements-fallback.txt"
+  if [[ ! -f "$FALLBACK_REQ" ]]; then
+    echo "fallback requirements 파일이 없습니다: $FALLBACK_REQ" >&2
+    exit 1
+  fi
+  echo "[2/2] fallback 의존성 설치 (${FALLBACK_REQ})"
+  "${PIPENV[@]}" run python -m pip install --upgrade pip setuptools wheel
+  "${PIPENV[@]}" run python -m pip install -r "$FALLBACK_REQ"
+fi
 
 echo "완료: ${ROOT_DIR}/.venv"
-"${PIPENV[@]}" run python -c "import sys; print('Venv Python:', sys.executable)"
+"${PIPENV[@]}" run python -c "import sys, numpy, six, hexdump; print('Venv Python:', sys.executable); print('numpy:', numpy.__version__)"
