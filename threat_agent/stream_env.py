@@ -60,6 +60,7 @@ class StreamThreatEnv:
         split: str = "train",
         split_ratio: tuple[float, float, float] = (0.7, 0.15, 0.15),
         config: StreamEnvConfig | None = None,
+        tactics: list[str] | None = None,
     ):
         self.stream_path = Path(stream_path)
         self.cfg = config or StreamEnvConfig()
@@ -164,7 +165,7 @@ class StreamThreatEnv:
 
         all_streams = sorted(all_streams, key=lambda x: x["stream_id"])
 
-        self.tactics = sorted(tactic_set)
+        self.tactics = sorted(tactics) if tactics is not None else sorted(tactic_set)
         self.labels = ["benign"] + self.tactics
         if has_predefined_split:
             if split not in {"train", "val", "test"}:

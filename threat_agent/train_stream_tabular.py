@@ -192,8 +192,8 @@ def main():
     val_path = args.val_stream_data or args.stream_data
     test_path = args.test_stream_data or args.stream_data
     train_env = StreamThreatEnv(train_path, split="train", config=env_cfg)
-    val_env = StreamThreatEnv(val_path, split="val", config=env_cfg)
-    test_env = StreamThreatEnv(test_path, split="test", config=env_cfg)
+    val_env = StreamThreatEnv(val_path, split="val", config=env_cfg, tactics=train_env.tactics)
+    test_env = StreamThreatEnv(test_path, split="test", config=env_cfg, tactics=train_env.tactics)
     cfg = Cfg(
         gamma=args.gamma,
         alpha=args.alpha,
