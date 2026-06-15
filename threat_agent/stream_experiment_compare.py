@@ -25,6 +25,9 @@ def run_cmd(cmd: list[str]):
 def parse_args():
     p = argparse.ArgumentParser(description="Stream RL comparison runner.")
     p.add_argument("--stream-data", type=Path, default=Path("results/stream_events.ndjson"))
+    p.add_argument("--train-stream-data", type=Path, default=None)
+    p.add_argument("--val-stream-data", type=Path, default=None)
+    p.add_argument("--test-stream-data", type=Path, default=None)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--tabular-episodes", type=int, default=3000)
     p.add_argument("--deep-episodes", type=int, default=1500)
@@ -45,6 +48,14 @@ def main():
     rf_path = out_dir / "stream_reinforce_metrics.json"
     a2c_path = out_dir / "stream_a2c_metrics.json"
 
+    split_stream_args: list[str] = []
+    if args.train_stream_data:
+        split_stream_args += ["--train-stream-data", str(args.train_stream_data)]
+    if args.val_stream_data:
+        split_stream_args += ["--val-stream-data", str(args.val_stream_data)]
+    if args.test_stream_data:
+        split_stream_args += ["--test-stream-data", str(args.test_stream_data)]
+
     run_cmd(
         [
             py,
@@ -63,6 +74,7 @@ def main():
             "--output",
             str(tab_path),
         ]
+        + split_stream_args
     )
     run_cmd(
         [
@@ -82,6 +94,7 @@ def main():
             "--metrics-output",
             str(dqn_path),
         ]
+        + split_stream_args
     )
     run_cmd(
         [
@@ -101,6 +114,7 @@ def main():
             "--metrics-output",
             str(rf_path),
         ]
+        + split_stream_args
     )
     run_cmd(
         [
@@ -120,6 +134,7 @@ def main():
             "--metrics-output",
             str(a2c_path),
         ]
+        + split_stream_args
     )
 
     summary = {

@@ -144,7 +144,16 @@ def main():
     total_written = 0
     per_stream_stats = []
     stream_global_idx = 0
-    with args.output.open("w", encoding="utf-8", newline="\n") as fout:
+    split_output_paths = {
+        s: args.output.with_name(f"{args.output.stem}_{s}{args.output.suffix}") for s in SPLITS
+    }
+    with (
+        args.output.open("w", encoding="utf-8", newline="\n") as fout,
+        split_output_paths["train"].open("w", encoding="utf-8", newline="\n") as ftrain,
+        split_output_paths["val"].open("w", encoding="utf-8", newline="\n") as fval,
+        split_output_paths["test"].open("w", encoding="utf-8", newline="\n") as ftest,
+    ):
+        split_writers = {"train": ftrain, "val": fval, "test": ftest}
         for split_name in SPLITS:
             split_events = split_to_events[split_name]
             n_streams_for_split = streams_per_split[split_name]
@@ -253,8 +262,11 @@ def main():
                         "gt_tactic": gt_tactic,
                         **ev_for_stream,
                     }
-                    fout.write(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+                    out_line = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
+                    fout.write(out_line)
                     fout.write("\n")
+                    split_writers[split_name].write(out_line)
+                    split_writers[split_name].write("\n")
                     total_written += 1
                     stream_label_counts[out.get("weak_label", "unknown")] += 1
 
@@ -273,8 +285,11 @@ def main():
                         "gt_tactic": "benign",
                         **ev_for_stream,
                     }
-                    fout.write(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+                    out_line = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
+                    fout.write(out_line)
                     fout.write("\n")
+                    split_writers[split_name].write(out_line)
+                    split_writers[split_name].write("\n")
                     total_written += 1
                     benign_written += 1
                     stream_label_counts[out.get("weak_label", "unknown")] += 1
@@ -294,6 +309,7 @@ def main():
     summary = {
         "input": str(args.input.resolve()),
         "output": str(args.output.resolve()),
+        "split_output_files": {s: str(split_output_paths[s].resolve()) for s in SPLITS},
         "num_streams": args.num_streams,
         "split_mode": args.split_mode,
         "split_ratio": {"train": ratios[0], "val": ratios[1], "test": ratios[2]},

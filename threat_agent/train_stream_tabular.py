@@ -166,6 +166,9 @@ def evaluate(agent: BaseTab, env: StreamThreatEnv, episodes: int):
 def parse_args():
     p = argparse.ArgumentParser(description="Train stream tabular algorithms.")
     p.add_argument("--stream-data", type=Path, default=Path("results/stream_events.ndjson"))
+    p.add_argument("--train-stream-data", type=Path, default=None)
+    p.add_argument("--val-stream-data", type=Path, default=None)
+    p.add_argument("--test-stream-data", type=Path, default=None)
     p.add_argument("--algorithm", default="all", choices=["mc", "sarsa", "qlearning", "all"])
     p.add_argument("--episodes", type=int, default=3000)
     p.add_argument("--eval-episodes", type=int, default=100)
@@ -185,9 +188,12 @@ def parse_args():
 def main():
     args = parse_args()
     env_cfg = StreamEnvConfig(window_size=args.window_size, max_steps=args.max_steps, seed=args.seed)
-    train_env = StreamThreatEnv(args.stream_data, split="train", config=env_cfg)
-    val_env = StreamThreatEnv(args.stream_data, split="val", config=env_cfg)
-    test_env = StreamThreatEnv(args.stream_data, split="test", config=env_cfg)
+    train_path = args.train_stream_data or args.stream_data
+    val_path = args.val_stream_data or args.stream_data
+    test_path = args.test_stream_data or args.stream_data
+    train_env = StreamThreatEnv(train_path, split="train", config=env_cfg)
+    val_env = StreamThreatEnv(val_path, split="val", config=env_cfg)
+    test_env = StreamThreatEnv(test_path, split="test", config=env_cfg)
     cfg = Cfg(
         gamma=args.gamma,
         alpha=args.alpha,

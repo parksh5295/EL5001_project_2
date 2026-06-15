@@ -19,6 +19,9 @@ fi
 INPUT_EVENTS="events.ndjson"
 WEAK_LABELED_OUT="results/events_weak_labeled.ndjson"
 STREAM_OUT="results/stream_events.ndjson"
+TRAIN_STREAM_OUT=""
+VAL_STREAM_OUT=""
+TEST_STREAM_OUT=""
 NUM_STREAMS="100000"
 EVENTS_PER_STREAM="100"
 SPLIT_MODE="source"
@@ -70,6 +73,21 @@ done
 
 mkdir -p results checkpoints
 
+if [[ -z "$TRAIN_STREAM_OUT" || -z "$VAL_STREAM_OUT" || -z "$TEST_STREAM_OUT" ]]; then
+  stream_dir="$(dirname "$STREAM_OUT")"
+  stream_base="$(basename "$STREAM_OUT")"
+  if [[ "$stream_base" == *.* ]]; then
+    stream_stem="${stream_base%.*}"
+    stream_ext=".${stream_base##*.}"
+  else
+    stream_stem="$stream_base"
+    stream_ext=""
+  fi
+  TRAIN_STREAM_OUT="${stream_dir}/${stream_stem}_train${stream_ext}"
+  VAL_STREAM_OUT="${stream_dir}/${stream_stem}_val${stream_ext}"
+  TEST_STREAM_OUT="${stream_dir}/${stream_stem}_test${stream_ext}"
+fi
+
 if [[ ! -d ".venv" ]]; then
   echo "[prep] .venv가 없어 setup_pipenv.sh 실행"
   bash "$ROOT_DIR/setup_pipenv.sh"
@@ -102,12 +120,20 @@ else
     echo "--skip-build was specified, but stream data file not found: $STREAM_OUT" >&2
     exit 1
   fi
+  if [[ ! -f "$TRAIN_STREAM_OUT" || ! -f "$VAL_STREAM_OUT" || ! -f "$TEST_STREAM_OUT" ]]; then
+    echo "--skip-build was specified, but split stream files are missing." >&2
+    echo "expected: $TRAIN_STREAM_OUT, $VAL_STREAM_OUT, $TEST_STREAM_OUT" >&2
+    exit 1
+  fi
   echo "[skip] Reusing existing stream data -> ${STREAM_OUT}"
 fi
 
 echo "[3/3] Run stream comparison experiments"
 "${PIPENV[@]}" run python -m threat_agent.stream_experiment_compare \
   --stream-data "$STREAM_OUT" \
+  --train-stream-data "$TRAIN_STREAM_OUT" \
+  --val-stream-data "$VAL_STREAM_OUT" \
+  --test-stream-data "$TEST_STREAM_OUT" \
   --seed "$SEED" \
   --tabular-episodes "$TABULAR_EPISODES" \
   --deep-episodes "$DEEP_EPISODES" \

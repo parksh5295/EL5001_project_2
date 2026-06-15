@@ -111,6 +111,9 @@ def eval_policy(net: QNet, env: StreamThreatEnv, episodes: int, device: torch.de
 def parse_args():
     p = argparse.ArgumentParser(description="Train stream DQN.")
     p.add_argument("--stream-data", type=Path, default=Path("results/stream_events.ndjson"))
+    p.add_argument("--train-stream-data", type=Path, default=None)
+    p.add_argument("--val-stream-data", type=Path, default=None)
+    p.add_argument("--test-stream-data", type=Path, default=None)
     p.add_argument("--episodes", type=int, default=1500)
     p.add_argument("--max-steps", type=int, default=250)
     p.add_argument("--window-size", type=int, default=25)
@@ -138,9 +141,12 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cfg = StreamEnvConfig(window_size=args.window_size, max_steps=args.max_steps, seed=args.seed)
-    train_env = StreamThreatEnv(args.stream_data, split="train", config=cfg)
-    val_env = StreamThreatEnv(args.stream_data, split="val", config=cfg)
-    test_env = StreamThreatEnv(args.stream_data, split="test", config=cfg)
+    train_path = args.train_stream_data or args.stream_data
+    val_path = args.val_stream_data or args.stream_data
+    test_path = args.test_stream_data or args.stream_data
+    train_env = StreamThreatEnv(train_path, split="train", config=cfg)
+    val_env = StreamThreatEnv(val_path, split="val", config=cfg)
+    test_env = StreamThreatEnv(test_path, split="test", config=cfg)
 
     net = QNet(train_env.state_size, train_env.action_size).to(device)
     target = QNet(train_env.state_size, train_env.action_size).to(device)

@@ -65,37 +65,112 @@ class StreamThreatEnv:
         self.cfg = config or StreamEnvConfig()
         self.rng = random.Random(self.cfg.seed)
         self.np_rng = np.random.default_rng(self.cfg.seed)
+        valid_splits = {"train", "val", "test"}
+        has_any_row = False
+        has_predefined_split = True
+        tactic_set: set[str] = set()
 
-        rows = []
+        # Pass 1: detect split tagging and collect global tactic label space
         with self.stream_path.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line:
-                    rows.append(json.loads(line))
-        if not rows:
+                if not line:
+                    continue
+                has_any_row = True
+                row = json.loads(line)
+                row_split = row.get("dataset_split")
+                if row_split not in valid_splits:
+                    has_predefined_split = False
+                gt_tactic = row.get("gt_tactic")
+                if gt_tactic and gt_tactic != "benign":
+                    tactic_set.add(gt_tactic)
+
+        if not has_any_row:
             raise ValueError(f"No stream rows in {self.stream_path}")
 
-        # group by stream_id and order by stream_pos
-        by_stream: dict[str, list[dict]] = {}
-        for r in rows:
-            by_stream.setdefault(r["stream_id"], []).append(r)
-        all_streams = []
-        for sid, seq in by_stream.items():
-            seq = sorted(seq, key=lambda x: int(x.get("stream_pos", 0)))
-            stream_split = seq[0].get("dataset_split")
-            all_streams.append({"stream_id": sid, "events": seq, "dataset_split": stream_split})
+        # Pass 2: build per-stream byte range index so we can lazy-load stream events on reset().
+        all_streams: list[dict[str, Any]] = []
+        seen_stream_ids: set[str] = set()
+        current_sid: str | None = None
+        current_split: str | None = None
+        current_start = 0
+        non_contiguous = False
+        with self.stream_path.open("rb") as f:
+            while True:
+                line_start = f.tell()
+                line = f.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line.decode("utf-8"))
+                if has_predefined_split and row.get("dataset_split") != split:
+                    continue
+                sid = str(row["stream_id"])
+                row_split = row.get("dataset_split")
+
+                if current_sid is None:
+                    current_sid = sid
+                    current_split = row_split
+                    current_start = line_start
+                    if sid in seen_stream_ids:
+                        non_contiguous = True
+                    seen_stream_ids.add(sid)
+                    continue
+
+                if sid != current_sid:
+                    all_streams.append(
+                        {
+                            "stream_id": current_sid,
+                            "dataset_split": current_split,
+                            "byte_start": current_start,
+                            "byte_end": line_start,
+                        }
+                    )
+                    current_sid = sid
+                    current_split = row_split
+                    current_start = line_start
+                    if sid in seen_stream_ids:
+                        non_contiguous = True
+                    seen_stream_ids.add(sid)
+
+            if current_sid is not None:
+                all_streams.append(
+                    {
+                        "stream_id": current_sid,
+                        "dataset_split": current_split,
+                        "byte_start": current_start,
+                        "byte_end": f.tell(),
+                    }
+                )
+
+        if non_contiguous:
+            # Fallback for legacy datasets where a stream_id appears in multiple distant chunks.
+            by_stream: dict[str, list[dict]] = {}
+            with self.stream_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    row = json.loads(line)
+                    if has_predefined_split and row.get("dataset_split") != split:
+                        continue
+                    by_stream.setdefault(row["stream_id"], []).append(row)
+            all_streams = []
+            for sid, seq in by_stream.items():
+                seq = sorted(seq, key=lambda x: int(x.get("stream_pos", 0)))
+                all_streams.append({"stream_id": sid, "dataset_split": seq[0].get("dataset_split"), "events": seq})
+
         all_streams = sorted(all_streams, key=lambda x: x["stream_id"])
 
-        # tactics from gt_tactic except benign
-        tactic_set = sorted({r.get("gt_tactic") for r in rows if r.get("gt_tactic") and r.get("gt_tactic") != "benign"})
-        self.tactics = tactic_set
+        self.tactics = sorted(tactic_set)
         self.labels = ["benign"] + self.tactics
-
-        has_predefined_split = all(s.get("dataset_split") in {"train", "val", "test"} for s in all_streams)
         if has_predefined_split:
             if split not in {"train", "val", "test"}:
                 raise ValueError(f"Unknown split: {split}")
-            self.streams = [s for s in all_streams if s.get("dataset_split") == split]
+            # all_streams are already filtered by split in pass 2.
+            self.streams = all_streams
             if not self.streams:
                 raise ValueError(f"No streams found for split='{split}' in dataset_split-tagged data.")
         else:
@@ -133,13 +208,39 @@ class StreamThreatEnv:
 
         self.current_stream: dict[str, Any] | None = None
         self.stream_events: list[dict] = []
+        self._cached_stream_id: str | None = None
+        self._cached_events: list[dict] | None = None
         self.idx = 0
         self.step_count = 0
         self.done = False
 
+    def _load_stream_events(self, stream: dict[str, Any]) -> list[dict]:
+        if "events" in stream:
+            return stream["events"]
+        sid = stream["stream_id"]
+        if sid == self._cached_stream_id and self._cached_events is not None:
+            return self._cached_events
+
+        events: list[dict] = []
+        with self.stream_path.open("rb") as f:
+            f.seek(int(stream["byte_start"]))
+            end = int(stream["byte_end"])
+            while f.tell() < end:
+                line = f.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                events.append(json.loads(line.decode("utf-8")))
+        events = sorted(events, key=lambda x: int(x.get("stream_pos", 0)))
+        self._cached_stream_id = sid
+        self._cached_events = events
+        return events
+
     def reset(self, stream: dict | None = None):
         self.current_stream = stream if stream is not None else self.rng.choice(self.streams)
-        self.stream_events = self.current_stream["events"]
+        self.stream_events = self._load_stream_events(self.current_stream)
         self.idx = min(self.cfg.window_size - 1, len(self.stream_events) - 1)
         self.step_count = 0
         self.done = False

@@ -18,6 +18,13 @@ $ErrorActionPreference = "Stop"
 $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $RootDir
 
+$streamDir = Split-Path -Parent $StreamOut
+$streamStem = [System.IO.Path]::GetFileNameWithoutExtension($StreamOut)
+$streamExt = [System.IO.Path]::GetExtension($StreamOut)
+$trainStreamOut = Join-Path $streamDir "${streamStem}_train${streamExt}"
+$valStreamOut = Join-Path $streamDir "${streamStem}_val${streamExt}"
+$testStreamOut = Join-Path $streamDir "${streamStem}_test${streamExt}"
+
 function Invoke-Checked {
     param(
         [Parameter(Mandatory = $true)]
@@ -69,6 +76,9 @@ if (-not $SkipBuild) {
     if (-not (Test-Path $StreamOut)) {
         throw "-SkipBuild was specified, but stream data file not found: $StreamOut"
     }
+    if (-not (Test-Path $trainStreamOut) -or -not (Test-Path $valStreamOut) -or -not (Test-Path $testStreamOut)) {
+        throw "-SkipBuild was specified, but split stream files are missing: $trainStreamOut, $valStreamOut, $testStreamOut"
+    }
     Write-Host "[skip] Reusing existing stream data -> $StreamOut"
 }
 
@@ -76,6 +86,9 @@ Write-Host "[3/3] Run stream comparison experiments"
 Invoke-Checked @(
     "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.stream_experiment_compare",
     "--stream-data", "$StreamOut",
+    "--train-stream-data", "$trainStreamOut",
+    "--val-stream-data", "$valStreamOut",
+    "--test-stream-data", "$testStreamOut",
     "--seed", "$Seed",
     "--tabular-episodes", "$TabularEpisodes",
     "--deep-episodes", "$DeepEpisodes",
