@@ -9,6 +9,7 @@ Creates stream episodes by interleaving:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import random
 from collections import Counter, defaultdict
@@ -147,12 +148,11 @@ def main():
     split_output_paths = {
         s: args.output.with_name(f"{args.output.stem}_{s}{args.output.suffix}") for s in SPLITS
     }
-    with (
-        args.output.open("w", encoding="utf-8", newline="\n") as fout,
-        split_output_paths["train"].open("w", encoding="utf-8", newline="\n") as ftrain,
-        split_output_paths["val"].open("w", encoding="utf-8", newline="\n") as fval,
-        split_output_paths["test"].open("w", encoding="utf-8", newline="\n") as ftest,
-    ):
+    with contextlib.ExitStack() as stack:
+        fout = stack.enter_context(args.output.open("w", encoding="utf-8", newline="\n"))
+        ftrain = stack.enter_context(split_output_paths["train"].open("w", encoding="utf-8", newline="\n"))
+        fval = stack.enter_context(split_output_paths["val"].open("w", encoding="utf-8", newline="\n"))
+        ftest = stack.enter_context(split_output_paths["test"].open("w", encoding="utf-8", newline="\n"))
         split_writers = {"train": ftrain, "val": fval, "test": ftest}
         for split_name in SPLITS:
             split_events = split_to_events[split_name]
