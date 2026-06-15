@@ -3,13 +3,14 @@ param(
     [string]$WeakLabeledOut = "results/events_weak_labeled.ndjson",
     [string]$StreamOut = "results/stream_events.ndjson",
     [int]$NumStreams = 100000,
-    [int]$EventsPerStream = 200,
+    [int]$EventsPerStream = 100,
     [ValidateSet("source", "event")][string]$SplitMode = "source",
     [string]$SplitRatio = "0.7,0.15,0.15",
     [int]$Seed = 42,
-    [int]$TabularEpisodes = 3000,
-    [int]$DeepEpisodes = 1500,
-    [int]$EvalEpisodes = 100
+    [int]$TabularEpisodes = 1000,
+    [int]$DeepEpisodes = 1000,
+    [int]$EvalEpisodes = 100,
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,26 +44,33 @@ if (-not (Test-Path ".venv")) {
     }
 }
 
-Write-Host "[1/3] Weak label events -> $WeakLabeledOut"
-Invoke-Checked @(
-    "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.stream_labeler",
-    "--input", "$InputEvents",
-    "--output", "$WeakLabeledOut",
-    "--summary-json", "results/events_weak_label_summary.json"
-)
+if (-not $SkipBuild) {
+    Write-Host "[1/3] Weak label events -> $WeakLabeledOut"
+    Invoke-Checked @(
+        "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.stream_labeler",
+        "--input", "$InputEvents",
+        "--output", "$WeakLabeledOut",
+        "--summary-json", "results/events_weak_label_summary.json"
+    )
 
-Write-Host "[2/3] Build stream episodes -> $StreamOut"
-Invoke-Checked @(
-    "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.stream_builder",
-    "--input", "$WeakLabeledOut",
-    "--output", "$StreamOut",
-    "--summary-json", "results/stream_summary.json",
-    "--num-streams", "$NumStreams",
-    "--events-per-stream", "$EventsPerStream",
-    "--split-mode", "$SplitMode",
-    "--split-ratio", "$SplitRatio",
-    "--seed", "$Seed"
-)
+    Write-Host "[2/3] Build stream episodes -> $StreamOut"
+    Invoke-Checked @(
+        "python", "-m", "pipenv", "run", "python", "-m", "threat_agent.stream_builder",
+        "--input", "$WeakLabeledOut",
+        "--output", "$StreamOut",
+        "--summary-json", "results/stream_summary.json",
+        "--num-streams", "$NumStreams",
+        "--events-per-stream", "$EventsPerStream",
+        "--split-mode", "$SplitMode",
+        "--split-ratio", "$SplitRatio",
+        "--seed", "$Seed"
+    )
+} else {
+    if (-not (Test-Path $StreamOut)) {
+        throw "-SkipBuild was specified, but stream data file not found: $StreamOut"
+    }
+    Write-Host "[skip] Reusing existing stream data -> $StreamOut"
+}
 
 Write-Host "[3/3] Run stream comparison experiments"
 Invoke-Checked @(

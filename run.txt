@@ -23,3 +23,4 @@ source 단위(권장):
 .\run_all_compare.ps1 -SplitMode source -SplitRatio "0.7,0.15,0.15"
 event 단위:
 .\run_all_compare.ps1 -SplitMode event -SplitRatio "0.7,0.15,0.15"
+-SkipBuild

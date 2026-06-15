@@ -8,10 +8,10 @@ INPUT_EVENTS="${1:-events.ndjson}"
 WEAK_LABELED_OUT="${2:-results/events_weak_labeled.ndjson}"
 STREAM_OUT="${3:-results/stream_events.ndjson}"
 NUM_STREAMS="${4:-100000}"
-EVENTS_PER_STREAM="${5:-200}"
+EVENTS_PER_STREAM="${5:-100}"
 SEED="${6:-42}"
-TABULAR_EPISODES="${7:-3000}"
-DEEP_EPISODES="${8:-1500}"
+TABULAR_EPISODES="${7:-1000}"
+DEEP_EPISODES="${8:-1000}"
 EVAL_EPISODES="${9:-100}"
 
 mkdir -p results checkpoints
