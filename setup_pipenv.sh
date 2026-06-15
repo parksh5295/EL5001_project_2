@@ -19,14 +19,28 @@ fi
 
 if [[ -n "${PIPENV_PYTHON:-}" ]]; then
   PYTHON_BIN="$PIPENV_PYTHON"
-else
-  PYTHON_BIN="3.10"
-  if command -v pyenv >/dev/null 2>&1; then
-    PY310_VER="$(pyenv versions --bare | awk '/^3\.10(\.|$)/{v=$0} END{print v}')"
-    if [[ -n "$PY310_VER" ]]; then
-      PYTHON_BIN="$(PYENV_VERSION="$PY310_VER" pyenv which python)"
-    fi
+elif command -v python3.10 >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python3.10)"
+elif command -v pyenv >/dev/null 2>&1; then
+  PY310_VER="$(pyenv versions --bare | awk '/^3\.10(\.|$)/{v=$0} END{print v}')"
+  if [[ -n "$PY310_VER" ]]; then
+    PYTHON_BIN="$(PYENV_VERSION="$PY310_VER" pyenv which python)"
+  else
+    PYTHON_BIN="$(command -v python3 || true)"
   fi
+else
+  PYTHON_BIN="$(command -v python3 || true)"
+fi
+
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  echo "사용 가능한 python3 실행 파일을 찾지 못했습니다." >&2
+  echo "환경변수로 지정해 주세요: PIPENV_PYTHON=/path/to/python ./setup_pipenv.sh" >&2
+  exit 1
+fi
+
+if ! "$PYTHON_BIN" -c "import sys; sys.exit(0 if sys.version_info[:2]==(3,10) else 1)" >/dev/null 2>&1; then
+  echo "[warn] Python 3.10을 찾지 못해 fallback 사용: $PYTHON_BIN"
+  echo "[warn] Pipfile 요구 버전(3.10)과 다를 수 있지만, sudo 없는 환경에서 진행합니다."
 fi
 
 if [[ -d ".venv" ]]; then
