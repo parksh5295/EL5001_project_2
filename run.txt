@@ -25,6 +25,13 @@ event 단위:
 .\run_all_compare.ps1 -SplitMode event -SplitRatio "0.7,0.15,0.15"
 -SkipBuild
 
+
+(in bash)
+python3 -m pip install --user pipenv
+export PATH="$HOME/.local/bin:$PATH"
+hash -r
+./run_all_compare.sh --split-mode source --split-ratio "0.7,0.15,0.15"
+
 전체 실행 (source split)
 ./run_all_compare.sh --split-mode source --split-ratio "0.7,0.15,0.15"
 event split

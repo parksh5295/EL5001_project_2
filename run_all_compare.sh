@@ -4,6 +4,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+export PIPENV_VENV_IN_PROJECT=1
+
+if python3 -m pipenv --version >/dev/null 2>&1; then
+  PIPENV=(python3 -m pipenv)
+elif command -v pipenv >/dev/null 2>&1; then
+  PIPENV=(pipenv)
+else
+  echo "pipenv를 찾을 수 없습니다." >&2
+  echo "먼저 실행하세요: python3 -m pip install --user pipenv" >&2
+  exit 1
+fi
+
 INPUT_EVENTS="events.ndjson"
 WEAK_LABELED_OUT="results/events_weak_labeled.ndjson"
 STREAM_OUT="results/stream_events.ndjson"
@@ -58,15 +70,20 @@ done
 
 mkdir -p results checkpoints
 
+if [[ ! -d ".venv" ]]; then
+  echo "[prep] .venv가 없어 setup_pipenv.sh 실행"
+  bash "$ROOT_DIR/setup_pipenv.sh"
+fi
+
 if [[ "$SKIP_BUILD" != "true" ]]; then
   echo "[1/3] Weak label events -> ${WEAK_LABELED_OUT}"
-  pipenv run python -m threat_agent.stream_labeler \
+  "${PIPENV[@]}" run python -m threat_agent.stream_labeler \
     --input "$INPUT_EVENTS" \
     --output "$WEAK_LABELED_OUT" \
     --summary-json results/events_weak_label_summary.json
 
   echo "[2/3] Build stream episodes -> ${STREAM_OUT}"
-  pipenv run python -m threat_agent.stream_builder \
+  "${PIPENV[@]}" run python -m threat_agent.stream_builder \
     --input "$WEAK_LABELED_OUT" \
     --output "$STREAM_OUT" \
     --summary-json results/stream_summary.json \
@@ -84,7 +101,7 @@ else
 fi
 
 echo "[3/3] Run stream comparison experiments"
-pipenv run python -m threat_agent.stream_experiment_compare \
+"${PIPENV[@]}" run python -m threat_agent.stream_experiment_compare \
   --stream-data "$STREAM_OUT" \
   --seed "$SEED" \
   --tabular-episodes "$TABULAR_EPISODES" \
