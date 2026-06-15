@@ -4,32 +4,84 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
-INPUT_EVENTS="${1:-events.ndjson}"
-WEAK_LABELED_OUT="${2:-results/events_weak_labeled.ndjson}"
-STREAM_OUT="${3:-results/stream_events.ndjson}"
-NUM_STREAMS="${4:-100000}"
-EVENTS_PER_STREAM="${5:-100}"
-SEED="${6:-42}"
-TABULAR_EPISODES="${7:-1000}"
-DEEP_EPISODES="${8:-1000}"
-EVAL_EPISODES="${9:-30}"
+INPUT_EVENTS="events.ndjson"
+WEAK_LABELED_OUT="results/events_weak_labeled.ndjson"
+STREAM_OUT="results/stream_events.ndjson"
+NUM_STREAMS="100000"
+EVENTS_PER_STREAM="100"
+SPLIT_MODE="source"
+SPLIT_RATIO="0.7,0.15,0.15"
+SEED="42"
+TABULAR_EPISODES="1000"
+DEEP_EPISODES="1000"
+EVAL_EPISODES="30"
+SKIP_BUILD="false"
+
+# Backward-compatible positional args (up to 9, until first --option)
+pos_idx=1
+while [[ $# -gt 0 && "${1:-}" != --* && $pos_idx -le 9 ]]; do
+  case $pos_idx in
+    1) INPUT_EVENTS="$1" ;;
+    2) WEAK_LABELED_OUT="$1" ;;
+    3) STREAM_OUT="$1" ;;
+    4) NUM_STREAMS="$1" ;;
+    5) EVENTS_PER_STREAM="$1" ;;
+    6) SEED="$1" ;;
+    7) TABULAR_EPISODES="$1" ;;
+    8) DEEP_EPISODES="$1" ;;
+    9) EVAL_EPISODES="$1" ;;
+  esac
+  pos_idx=$((pos_idx + 1))
+  shift
+done
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --input-events) INPUT_EVENTS="$2"; shift 2 ;;
+    --weak-labeled-out) WEAK_LABELED_OUT="$2"; shift 2 ;;
+    --stream-out) STREAM_OUT="$2"; shift 2 ;;
+    --num-streams) NUM_STREAMS="$2"; shift 2 ;;
+    --events-per-stream) EVENTS_PER_STREAM="$2"; shift 2 ;;
+    --split-mode) SPLIT_MODE="$2"; shift 2 ;;
+    --split-ratio) SPLIT_RATIO="$2"; shift 2 ;;
+    --seed) SEED="$2"; shift 2 ;;
+    --tabular-episodes) TABULAR_EPISODES="$2"; shift 2 ;;
+    --deep-episodes) DEEP_EPISODES="$2"; shift 2 ;;
+    --eval-episodes) EVAL_EPISODES="$2"; shift 2 ;;
+    --skip-build) SKIP_BUILD="true"; shift 1 ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 mkdir -p results checkpoints
 
-echo "[1/3] Weak label events -> ${WEAK_LABELED_OUT}"
-pipenv run python -m threat_agent.stream_labeler \
-  --input "$INPUT_EVENTS" \
-  --output "$WEAK_LABELED_OUT" \
-  --summary-json results/events_weak_label_summary.json
+if [[ "$SKIP_BUILD" != "true" ]]; then
+  echo "[1/3] Weak label events -> ${WEAK_LABELED_OUT}"
+  pipenv run python -m threat_agent.stream_labeler \
+    --input "$INPUT_EVENTS" \
+    --output "$WEAK_LABELED_OUT" \
+    --summary-json results/events_weak_label_summary.json
 
-echo "[2/3] Build stream episodes -> ${STREAM_OUT}"
-pipenv run python -m threat_agent.stream_builder \
-  --input "$WEAK_LABELED_OUT" \
-  --output "$STREAM_OUT" \
-  --summary-json results/stream_summary.json \
-  --num-streams "$NUM_STREAMS" \
-  --events-per-stream "$EVENTS_PER_STREAM" \
-  --seed "$SEED"
+  echo "[2/3] Build stream episodes -> ${STREAM_OUT}"
+  pipenv run python -m threat_agent.stream_builder \
+    --input "$WEAK_LABELED_OUT" \
+    --output "$STREAM_OUT" \
+    --summary-json results/stream_summary.json \
+    --num-streams "$NUM_STREAMS" \
+    --events-per-stream "$EVENTS_PER_STREAM" \
+    --split-mode "$SPLIT_MODE" \
+    --split-ratio "$SPLIT_RATIO" \
+    --seed "$SEED"
+else
+  if [[ ! -f "$STREAM_OUT" ]]; then
+    echo "--skip-build was specified, but stream data file not found: $STREAM_OUT" >&2
+    exit 1
+  fi
+  echo "[skip] Reusing existing stream data -> ${STREAM_OUT}"
+fi
 
 echo "[3/3] Run stream comparison experiments"
 pipenv run python -m threat_agent.stream_experiment_compare \
