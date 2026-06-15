@@ -9,7 +9,7 @@ param(
     [int]$Seed = 42,
     [int]$TabularEpisodes = 1000,
     [int]$DeepEpisodes = 1000,
-    [int]$EvalEpisodes = 100,
+    [int]$EvalEpisodes = 30,
     [switch]$SkipBuild
 )
 

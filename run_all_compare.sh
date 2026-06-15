@@ -12,7 +12,7 @@ EVENTS_PER_STREAM="${5:-100}"
 SEED="${6:-42}"
 TABULAR_EPISODES="${7:-1000}"
 DEEP_EPISODES="${8:-1000}"
-EVAL_EPISODES="${9:-100}"
+EVAL_EPISODES="${9:-30}"
 
 mkdir -p results checkpoints
 
