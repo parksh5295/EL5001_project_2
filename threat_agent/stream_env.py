@@ -217,8 +217,8 @@ class StreamThreatEnv:
         self.stream_events: list[dict] = []
         self._cached_stream_id: str | None = None
         self._cached_events: list[dict] | None = None
-        self.active_tactics: set[str] = set()
-        self._gt_tactic_sets: list[set[str]] = []
+        self.active_tactic: str | None = None
+        self._gt_tactics: list[str | None] = []
         self._gt_start_points: dict[str, set[int]] = {}
         self._gt_end_points: dict[str, set[int]] = {}
         self._pred_trace: list[list[str]] = []
@@ -274,28 +274,29 @@ class StreamThreatEnv:
         self.current_stream = stream if stream is not None else self.rng.choice(self.streams)
         self.stream_events = self._load_stream_events(self.current_stream)
         self.idx = min(self.cfg.window_size - 1, len(self.stream_events) - 1)
-        self._gt_tactic_sets = []
+        self._gt_tactics = []
         for e in self.stream_events:
             if int(e.get("gt_attack_active", 0)) == 1:
                 gt_tactic = e.get("gt_tactic")
                 if gt_tactic and gt_tactic in self.tactics:
-                    self._gt_tactic_sets.append({gt_tactic})
+                    self._gt_tactics.append(gt_tactic)
                 else:
-                    self._gt_tactic_sets.append(set())
+                    self._gt_tactics.append(None)
             else:
-                self._gt_tactic_sets.append(set())
+                self._gt_tactics.append(None)
         self._gt_start_points = {t: set() for t in self.tactics}
         self._gt_end_points = {t: set() for t in self.tactics}
-        prev_set: set[str] = set()
-        for i, cur_set in enumerate(self._gt_tactic_sets):
-            for t in cur_set - prev_set:
-                self._gt_start_points[t].add(i)
-            for t in prev_set - cur_set:
-                self._gt_end_points[t].add(i)
-            prev_set = set(cur_set)
-        for t in prev_set:
-            self._gt_end_points[t].add(len(self._gt_tactic_sets))
-        self.active_tactics = set()
+        prev_tactic: str | None = None
+        for i, cur_tactic in enumerate(self._gt_tactics):
+            if cur_tactic != prev_tactic:
+                if prev_tactic is not None:
+                    self._gt_end_points[prev_tactic].add(i)
+                if cur_tactic is not None:
+                    self._gt_start_points[cur_tactic].add(i)
+            prev_tactic = cur_tactic
+        if prev_tactic is not None:
+            self._gt_end_points[prev_tactic].add(len(self._gt_tactics))
+        self.active_tactic = None
         self._pred_trace = []
         self._gt_trace = []
         self._boundary_tp = 0
@@ -379,10 +380,10 @@ class StreamThreatEnv:
         e = self.stream_events[self.idx]
         return e.get("gt_attack_active", 0), e.get("gt_tactic", "benign")
 
-    def _current_gt_set(self) -> set[str]:
-        if not self._gt_tactic_sets:
-            return set()
-        return set(self._gt_tactic_sets[self.idx])
+    def _current_gt_tactic(self) -> str | None:
+        if not self._gt_tactics:
+            return None
+        return self._gt_tactics[self.idx]
 
     def _first_attack_pos(self):
         for i, e in enumerate(self.stream_events):
@@ -391,15 +392,12 @@ class StreamThreatEnv:
         return None
 
     @staticmethod
-    def _f1_for_sets(pred: set[str], gt: set[str], benign_match_reward: float = 0.0) -> float:
-        if not pred and not gt:
+    def _f1_for_labels(pred: str | None, gt: str | None, benign_match_reward: float = 0.0) -> float:
+        if pred is None and gt is None:
             return benign_match_reward
-        tp = len(pred & gt)
-        prec = tp / len(pred) if pred else 0.0
-        rec = tp / len(gt) if gt else 0.0
-        if prec + rec == 0:
-            return 0.0
-        return (2.0 * prec * rec) / (prec + rec)
+        if pred is not None and gt is not None and pred == gt:
+            return 1.0
+        return 0.0
 
     def _is_near_boundary(self, points: set[int]) -> bool:
         tol = max(0, int(self.cfg.boundary_tolerance))
@@ -419,8 +417,8 @@ class StreamThreatEnv:
             "attack_active": int(attack_active),
             "gt_tactic": gt_tactic,
             "first_attack_pos": self._first_attack_pos(),
-            "active_tactics": sorted(self.active_tactics),
-            "gt_active_tactics": sorted(self._current_gt_set()),
+            "active_tactics": [self.active_tactic] if self.active_tactic is not None else [],
+            "gt_active_tactics": [self._current_gt_tactic()] if self._current_gt_tactic() is not None else [],
         }
 
     def get_action_mask(self):
@@ -429,11 +427,11 @@ class StreamThreatEnv:
         mask[0] = 1.0  # WAIT always valid
         n = len(self.tactics)
         for i, tactic in enumerate(self.tactics):
-            # START valid only if tactic is not active
-            if tactic not in self.active_tactics:
+            # START valid only when no tactic is active.
+            if self.active_tactic is None:
                 mask[1 + i] = 1.0
-            # END valid only if tactic is currently active
-            if tactic in self.active_tactics:
+            # END valid only for currently active tactic.
+            if self.active_tactic == tactic:
                 mask[1 + n + i] = 1.0
         return mask
 
@@ -458,7 +456,7 @@ class StreamThreatEnv:
             self._action_counts["wait"] += 1
             self._last_non_wait_action = None
         elif op == "start":
-            if tactic is None or tactic in self.active_tactics:
+            if tactic is None or self.active_tactic is not None:
                 invalid_op = True
                 reward -= self.cfg.invalid_op_penalty
                 self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
@@ -475,7 +473,7 @@ class StreamThreatEnv:
                     reward -= self.cfg.flip_flop_penalty
                     self._reward_terms["flip_flop_penalty"] -= self.cfg.flip_flop_penalty
                 self._action_counts["start"] += 1
-                self.active_tactics.add(tactic)
+                self.active_tactic = tactic
                 if self._is_near_boundary(self._gt_start_points.get(tactic, set())):
                     boundary_hit = True
                     reward += self.cfg.boundary_bonus
@@ -485,7 +483,7 @@ class StreamThreatEnv:
                     self._boundary_fp += 1
                 self._last_non_wait_action = ("start", tactic)
         elif op == "end":
-            if tactic is None or tactic not in self.active_tactics:
+            if tactic is None or tactic != self.active_tactic:
                 invalid_op = True
                 reward -= self.cfg.invalid_op_penalty
                 self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
@@ -502,7 +500,7 @@ class StreamThreatEnv:
                     reward -= self.cfg.flip_flop_penalty
                     self._reward_terms["flip_flop_penalty"] -= self.cfg.flip_flop_penalty
                 self._action_counts["end"] += 1
-                self.active_tactics.remove(tactic)
+                self.active_tactic = None
                 if self._is_near_boundary(self._gt_end_points.get(tactic, set())):
                     boundary_hit = True
                     reward += self.cfg.boundary_bonus
@@ -512,33 +510,33 @@ class StreamThreatEnv:
                     self._boundary_fp += 1
                 self._last_non_wait_action = ("end", tactic)
 
-        gt_set = self._current_gt_set()
-        pred_set = set(self.active_tactics)
-        step_f1 = self._f1_for_sets(pred_set, gt_set, benign_match_reward=self.cfg.benign_match_reward)
+        gt_tactic = self._current_gt_tactic()
+        pred_tactic = self.active_tactic
+        step_f1 = self._f1_for_labels(pred_tactic, gt_tactic, benign_match_reward=self.cfg.benign_match_reward)
         reward += self.cfg.event_f1_reward_scale * step_f1
         self._reward_terms["event_f1_reward"] += self.cfg.event_f1_reward_scale * step_f1
-        if gt_set and not pred_set:
+        if gt_tactic is not None and pred_tactic is None:
             # Strongly discourage "always WAIT/empty" behavior during true attack windows.
             reward -= self.cfg.missed_attack_step_penalty
             self._reward_terms["missed_attack_penalty"] -= self.cfg.missed_attack_step_penalty
-        elif not gt_set and pred_set:
+        elif gt_tactic is None and pred_tactic is not None:
             # Discourage over-triggering attack state on benign windows.
             reward -= self.cfg.false_attack_step_penalty
             self._reward_terms["false_attack_penalty"] -= self.cfg.false_attack_step_penalty
-        elif gt_set and pred_set and step_f1 <= 1e-8:
+        elif gt_tactic is not None and pred_tactic is not None and step_f1 <= 1e-8:
             # Extra penalty for completely wrong active tactic set on attack windows.
             reward -= self.cfg.attack_mismatch_penalty
             self._reward_terms["attack_mismatch_penalty"] -= self.cfg.attack_mismatch_penalty
 
-        if gt_set:
+        if gt_tactic is not None:
             self._attack_step_stats["attack_steps"] += 1
-            if pred_set:
+            if pred_tactic is not None:
                 self._attack_step_stats["attack_steps_with_pred"] += 1
-            if pred_set & gt_set:
+            if pred_tactic == gt_tactic:
                 self._attack_step_stats["attack_steps_with_overlap"] += 1
 
-        self._pred_trace.append(sorted(pred_set))
-        self._gt_trace.append(sorted(gt_set))
+        self._pred_trace.append([pred_tactic] if pred_tactic is not None else [])
+        self._gt_trace.append([gt_tactic] if gt_tactic is not None else [])
 
         moved = self._advance()
         if not moved:
@@ -555,8 +553,8 @@ class StreamThreatEnv:
                 "action_name": op if tactic is None else f"{op}:{tactic}",
                 "boundary_hit": boundary_hit,
                 "invalid_op": invalid_op,
-                "pred_active_tactics": sorted(pred_set),
-                "gt_active_tactics": sorted(gt_set),
+                "pred_active_tactics": [pred_tactic] if pred_tactic is not None else [],
+                "gt_active_tactics": [gt_tactic] if gt_tactic is not None else [],
                 "step_event_f1": step_f1,
             }
         )
