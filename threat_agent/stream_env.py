@@ -35,6 +35,8 @@ class StreamEnvConfig:
     window_size: int = 25
     max_steps: int = 300
     event_f1_reward_scale: float = 5.0
+    benign_match_reward: float = 0.0
+    missed_attack_step_penalty: float = 0.5
     boundary_bonus: float = 2.0
     boundary_tolerance: int = 1
     invalid_op_penalty: float = 1.5
@@ -351,9 +353,9 @@ class StreamThreatEnv:
         return None
 
     @staticmethod
-    def _f1_for_sets(pred: set[str], gt: set[str]) -> float:
+    def _f1_for_sets(pred: set[str], gt: set[str], benign_match_reward: float = 0.0) -> float:
         if not pred and not gt:
-            return 1.0
+            return benign_match_reward
         tp = len(pred & gt)
         prec = tp / len(pred) if pred else 0.0
         rec = tp / len(gt) if gt else 0.0
@@ -427,8 +429,11 @@ class StreamThreatEnv:
 
         gt_set = self._current_gt_set()
         pred_set = set(self.active_tactics)
-        step_f1 = self._f1_for_sets(pred_set, gt_set)
+        step_f1 = self._f1_for_sets(pred_set, gt_set, benign_match_reward=self.cfg.benign_match_reward)
         reward += self.cfg.event_f1_reward_scale * step_f1
+        if gt_set and not pred_set:
+            # Strongly discourage "always WAIT/empty" behavior during true attack windows.
+            reward -= self.cfg.missed_attack_step_penalty
 
         self._pred_trace.append(sorted(pred_set))
         self._gt_trace.append(sorted(gt_set))
