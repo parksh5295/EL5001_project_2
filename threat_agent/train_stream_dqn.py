@@ -63,47 +63,27 @@ def eval_policy(net: QNet, env: StreamThreatEnv, episodes: int, device: torch.de
     ev = StreamEval(labels=env.labels)
     with torch.no_grad():
         for _ in range(episodes):
-            s, info = env.reset()
+            s, _ = env.reset()
             done = False
             ep_return = 0.0
             steps = 0
-            pred = None
-            true = None
-            declared_step = None
-            detection_delay = None
+            final_info = {}
             while not done:
                 q = net(torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0))[0].cpu().numpy()
                 a = int(np.argmax(q))
                 s, r, terminated, truncated, info = env.step(a)
                 ep_return += r
                 steps += 1
-                if info.get("declared_label") is not None:
-                    pred = info["declared_label"]
-                    true = info["true_label_at_declare"]
-                    declared_step = info["declared_step"]
-                    detection_delay = info.get("detection_delay")
+                final_info = info
                 done = terminated or truncated
-            if pred is None:
-                pred = "benign"
-                if info.get("first_attack_pos") is None:
-                    true = "benign"
-                else:
-                    true = next(
-                        (
-                            e.get("gt_tactic", "unknown_attack")
-                            for e in env.stream_events
-                            if int(e.get("gt_attack_active", 0)) == 1
-                        ),
-                        "unknown_attack",
-                    )
-            ev.add(
-                true_label=true,
-                pred_label=pred,
+            ev.add_segment_episode(
+                pred_trace=final_info.get("episode_pred_trace", []),
+                gt_trace=final_info.get("episode_gt_trace", []),
                 steps=steps,
-                declared_step=declared_step,
                 episode_return=ep_return,
-                first_attack_pos=info.get("first_attack_pos"),
-                detection_delay=detection_delay,
+                boundary_tp=final_info.get("boundary_tp", 0),
+                boundary_fp=final_info.get("boundary_fp", 0),
+                boundary_fn=final_info.get("boundary_fn", 0),
             )
     return ev.summary()
 

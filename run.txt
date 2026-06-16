@@ -38,3 +38,20 @@ event split
 ./run_all_compare.sh --split-mode event --split-ratio "0.7,0.15,0.15"
 기존 stream 재사용해서 3/3만 실행
 ./run_all_compare.sh --skip-build --deep-episodes 50000 --tabular-episodes 50000
+
+--skip-build \
+  --tabular-episodes 10000 \
+  --deep-episodes 10000 \
+  --eval-episodes 200
+
+구간형 RL 추천 실행 프리셋 (Linux .sh)
+1) 빠른 스모크(코드/지표 정상 확인)
+./run_all_compare.sh --split-mode source --split-ratio "0.7,0.15,0.15" --num-streams 300 --events-per-stream 100 --tabular-episodes 200 --deep-episodes 200 --eval-episodes 30
+2) 중간 학습(개발 반복용, 권장 시작점)
+./run_all_compare.sh --split-mode source --split-ratio "0.7,0.15,0.15" --events-per-stream 100 --tabular-episodes 3000 --deep-episodes 3000 --eval-episodes 100
+3) 학습만 재실행(기존 stream 재사용)
+./run_all_compare.sh --skip-build --tabular-episodes 5000 --deep-episodes 8000 --eval-episodes 200
+4) 결과 확인 파일
+results/stream_compare_summary.json
+results/stream_compare_summary.csv
+

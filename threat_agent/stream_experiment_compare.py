@@ -164,6 +164,11 @@ def main():
                     "majority_baseline_accuracy": metric.get("majority_baseline_accuracy"),
                     "majority_gain": metric.get("majority_gain"),
                     "avg_detection_delay": metric.get("avg_detection_delay"),
+                    "event_micro_f1": metric.get("event_micro_f1"),
+                    "event_macro_f1": metric.get("event_macro_f1"),
+                    "segment_boundary_precision": metric.get("segment_boundary_precision"),
+                    "segment_boundary_recall": metric.get("segment_boundary_recall"),
+                    "segment_boundary_f1": metric.get("segment_boundary_f1"),
                 }
             )
     for algo, entry in summary["deep"].items():
@@ -182,6 +187,11 @@ def main():
                     "majority_baseline_accuracy": metric.get("majority_baseline_accuracy"),
                     "majority_gain": metric.get("majority_gain"),
                     "avg_detection_delay": metric.get("avg_detection_delay"),
+                    "event_micro_f1": metric.get("event_micro_f1"),
+                    "event_macro_f1": metric.get("event_macro_f1"),
+                    "segment_boundary_precision": metric.get("segment_boundary_precision"),
+                    "segment_boundary_recall": metric.get("segment_boundary_recall"),
+                    "segment_boundary_f1": metric.get("segment_boundary_f1"),
                 }
             )
 
@@ -200,6 +210,11 @@ def main():
                 "majority_baseline_accuracy",
                 "majority_gain",
                 "avg_detection_delay",
+                "event_micro_f1",
+                "event_macro_f1",
+                "segment_boundary_precision",
+                "segment_boundary_recall",
+                "segment_boundary_f1",
             ],
         )
         writer.writeheader()
