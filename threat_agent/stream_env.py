@@ -36,11 +36,13 @@ class StreamEnvConfig:
     max_steps: int = 300
     event_f1_reward_scale: float = 5.0
     benign_match_reward: float = 0.0
-    missed_attack_step_penalty: float = 0.5
-    boundary_bonus: float = 2.0
+    missed_attack_step_penalty: float = 6.0
+    false_attack_step_penalty: float = 1.5
+    attack_mismatch_penalty: float = 2.0
+    boundary_bonus: float = 5.0
     boundary_tolerance: int = 1
-    invalid_op_penalty: float = 1.5
-    wait_cost: float = 0.02
+    invalid_op_penalty: float = 3.0
+    wait_cost: float = 0.1
     event_id_bins: list[int] | None = None
     seed: int | None = None
 
@@ -434,6 +436,12 @@ class StreamThreatEnv:
         if gt_set and not pred_set:
             # Strongly discourage "always WAIT/empty" behavior during true attack windows.
             reward -= self.cfg.missed_attack_step_penalty
+        elif not gt_set and pred_set:
+            # Discourage over-triggering attack state on benign windows.
+            reward -= self.cfg.false_attack_step_penalty
+        elif gt_set and pred_set and step_f1 <= 1e-8:
+            # Extra penalty for completely wrong active tactic set on attack windows.
+            reward -= self.cfg.attack_mismatch_penalty
 
         self._pred_trace.append(sorted(pred_set))
         self._gt_trace.append(sorted(gt_set))
