@@ -37,12 +37,14 @@ class StreamEnvConfig:
     event_f1_reward_scale: float = 5.0
     benign_match_reward: float = 0.0
     missed_attack_step_penalty: float = 6.0
-    false_attack_step_penalty: float = 1.5
+    false_attack_step_penalty: float = 6.0
     attack_mismatch_penalty: float = 2.0
     boundary_bonus: float = 5.0
     boundary_tolerance: int = 1
     invalid_op_penalty: float = 0.3
     wait_cost: float = 0.1
+    action_toggle_cost: float = 0.2
+    flip_flop_penalty: float = 1.0
     event_id_bins: list[int] | None = None
     seed: int | None = None
 
@@ -239,6 +241,7 @@ class StreamThreatEnv:
             "attack_steps_with_pred": 0,
             "attack_steps_with_overlap": 0,
         }
+        self._last_non_wait_action: tuple[str, str] | None = None
         self.idx = 0
         self.step_count = 0
         self.done = False
@@ -302,6 +305,8 @@ class StreamThreatEnv:
             "event_f1_reward": 0.0,
             "boundary_bonus": 0.0,
             "wait_penalty": 0.0,
+            "toggle_cost": 0.0,
+            "flip_flop_penalty": 0.0,
             "invalid_op_penalty": 0.0,
             "missed_attack_penalty": 0.0,
             "false_attack_penalty": 0.0,
@@ -313,6 +318,7 @@ class StreamThreatEnv:
             "attack_steps_with_pred": 0,
             "attack_steps_with_overlap": 0,
         }
+        self._last_non_wait_action = None
         self.step_count = 0
         self.done = False
         return self._get_state(), self._get_info()
@@ -450,6 +456,7 @@ class StreamThreatEnv:
             reward -= self.cfg.wait_cost
             self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
             self._action_counts["wait"] += 1
+            self._last_non_wait_action = None
         elif op == "start":
             if tactic is None or tactic in self.active_tactics:
                 invalid_op = True
@@ -460,7 +467,13 @@ class StreamThreatEnv:
                 reward -= self.cfg.wait_cost
                 self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
                 self._action_counts["wait"] += 1
+                self._last_non_wait_action = None
             else:
+                reward -= self.cfg.action_toggle_cost
+                self._reward_terms["toggle_cost"] -= self.cfg.action_toggle_cost
+                if self._last_non_wait_action == ("end", tactic):
+                    reward -= self.cfg.flip_flop_penalty
+                    self._reward_terms["flip_flop_penalty"] -= self.cfg.flip_flop_penalty
                 self._action_counts["start"] += 1
                 self.active_tactics.add(tactic)
                 if self._is_near_boundary(self._gt_start_points.get(tactic, set())):
@@ -470,6 +483,7 @@ class StreamThreatEnv:
                     self._boundary_tp += 1
                 else:
                     self._boundary_fp += 1
+                self._last_non_wait_action = ("start", tactic)
         elif op == "end":
             if tactic is None or tactic not in self.active_tactics:
                 invalid_op = True
@@ -480,7 +494,13 @@ class StreamThreatEnv:
                 reward -= self.cfg.wait_cost
                 self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
                 self._action_counts["wait"] += 1
+                self._last_non_wait_action = None
             else:
+                reward -= self.cfg.action_toggle_cost
+                self._reward_terms["toggle_cost"] -= self.cfg.action_toggle_cost
+                if self._last_non_wait_action == ("start", tactic):
+                    reward -= self.cfg.flip_flop_penalty
+                    self._reward_terms["flip_flop_penalty"] -= self.cfg.flip_flop_penalty
                 self._action_counts["end"] += 1
                 self.active_tactics.remove(tactic)
                 if self._is_near_boundary(self._gt_end_points.get(tactic, set())):
@@ -490,6 +510,7 @@ class StreamThreatEnv:
                     self._boundary_tp += 1
                 else:
                     self._boundary_fp += 1
+                self._last_non_wait_action = ("end", tactic)
 
         gt_set = self._current_gt_set()
         pred_set = set(self.active_tactics)
