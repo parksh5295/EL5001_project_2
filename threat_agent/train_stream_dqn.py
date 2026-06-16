@@ -58,6 +58,20 @@ class Buffer:
         return len(self.buf)
 
 
+def masked_argmax(q_values: np.ndarray, action_mask: np.ndarray) -> int:
+    valid = np.flatnonzero(action_mask > 0.0)
+    if len(valid) == 0:
+        return 0
+    return int(valid[np.argmax(q_values[valid])])
+
+
+def sample_valid_action(action_mask: np.ndarray) -> int:
+    valid = np.flatnonzero(action_mask > 0.0)
+    if len(valid) == 0:
+        return 0
+    return int(np.random.choice(valid))
+
+
 def eval_policy(net: QNet, env: StreamThreatEnv, episodes: int, device: torch.device):
     net.eval()
     ev = StreamEval(labels=env.labels)
@@ -70,7 +84,7 @@ def eval_policy(net: QNet, env: StreamThreatEnv, episodes: int, device: torch.de
             final_info = {}
             while not done:
                 q = net(torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0))[0].cpu().numpy()
-                a = int(np.argmax(q))
+                a = masked_argmax(q, env.get_action_mask())
                 s, r, terminated, truncated, info = env.step(a)
                 ep_return += r
                 steps += 1
@@ -165,12 +179,13 @@ def main():
         s, _ = train_env.reset()
         done = False
         while not done:
+            action_mask = train_env.get_action_mask()
             if np.random.rand() < eps:
-                a = np.random.randint(train_env.action_size)
+                a = sample_valid_action(action_mask)
             else:
                 with torch.no_grad():
                     q = net(torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0))[0].cpu().numpy()
-                a = int(np.argmax(q))
+                a = masked_argmax(q, action_mask)
 
             ns, r, terminated, truncated, _ = train_env.step(a)
             done = terminated or truncated

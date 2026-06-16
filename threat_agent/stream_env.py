@@ -41,7 +41,7 @@ class StreamEnvConfig:
     attack_mismatch_penalty: float = 2.0
     boundary_bonus: float = 5.0
     boundary_tolerance: int = 1
-    invalid_op_penalty: float = 3.0
+    invalid_op_penalty: float = 0.3
     wait_cost: float = 0.1
     event_id_bins: list[int] | None = None
     seed: int | None = None
@@ -417,6 +417,20 @@ class StreamThreatEnv:
             "gt_active_tactics": sorted(self._current_gt_set()),
         }
 
+    def get_action_mask(self):
+        """Return action validity mask for current state."""
+        mask = np.zeros(self.action_size, dtype=np.float32)
+        mask[0] = 1.0  # WAIT always valid
+        n = len(self.tactics)
+        for i, tactic in enumerate(self.tactics):
+            # START valid only if tactic is not active
+            if tactic not in self.active_tactics:
+                mask[1 + i] = 1.0
+            # END valid only if tactic is currently active
+            if tactic in self.active_tactics:
+                mask[1 + n + i] = 1.0
+        return mask
+
     def step(self, action: int):
         if self.done:
             raise RuntimeError("Episode already ended.")
@@ -437,13 +451,17 @@ class StreamThreatEnv:
             self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
             self._action_counts["wait"] += 1
         elif op == "start":
-            self._action_counts["start"] += 1
             if tactic is None or tactic in self.active_tactics:
                 invalid_op = True
                 reward -= self.cfg.invalid_op_penalty
                 self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
                 self._action_counts["invalid"] += 1
+                # Invalid action is converted to WAIT to prevent invalid-action loops.
+                reward -= self.cfg.wait_cost
+                self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
+                self._action_counts["wait"] += 1
             else:
+                self._action_counts["start"] += 1
                 self.active_tactics.add(tactic)
                 if self._is_near_boundary(self._gt_start_points.get(tactic, set())):
                     boundary_hit = True
@@ -453,13 +471,17 @@ class StreamThreatEnv:
                 else:
                     self._boundary_fp += 1
         elif op == "end":
-            self._action_counts["end"] += 1
             if tactic is None or tactic not in self.active_tactics:
                 invalid_op = True
                 reward -= self.cfg.invalid_op_penalty
                 self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
                 self._action_counts["invalid"] += 1
+                # Invalid action is converted to WAIT to prevent invalid-action loops.
+                reward -= self.cfg.wait_cost
+                self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
+                self._action_counts["wait"] += 1
             else:
+                self._action_counts["end"] += 1
                 self.active_tactics.remove(tactic)
                 if self._is_near_boundary(self._gt_end_points.get(tactic, set())):
                     boundary_hit = True

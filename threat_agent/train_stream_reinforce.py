@@ -32,6 +32,11 @@ class PolicyNet(nn.Module):
         return self.net(x)
 
 
+def masked_logits(logits: torch.Tensor, action_mask: np.ndarray, device: torch.device):
+    mask_t = torch.tensor(action_mask, dtype=torch.bool, device=device).unsqueeze(0)
+    return logits.masked_fill(~mask_t, -1e9)
+
+
 def eval_policy(policy: PolicyNet, env: StreamThreatEnv, episodes: int, device: torch.device):
     policy.eval()
     ev = StreamEval(labels=env.labels)
@@ -44,7 +49,9 @@ def eval_policy(policy: PolicyNet, env: StreamThreatEnv, episodes: int, device: 
             final_info = {}
             while not done:
                 s_t = torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0)
-                dist = torch.distributions.Categorical(logits=policy(s_t))
+                logits = policy(s_t)
+                logits = masked_logits(logits, env.get_action_mask(), device)
+                dist = torch.distributions.Categorical(logits=logits)
                 a = int(torch.argmax(dist.logits, dim=1).item())
                 s, r, terminated, truncated, info = env.step(a)
                 ep_return += r
@@ -142,7 +149,9 @@ def main():
         entropies: list[torch.Tensor] = []
         while not done:
             s_t = torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0)
-            dist = torch.distributions.Categorical(logits=policy(s_t))
+            logits = policy(s_t)
+            logits = masked_logits(logits, train_env.get_action_mask(), device)
+            dist = torch.distributions.Categorical(logits=logits)
             a = int(dist.sample().item())
             ns, r, terminated, truncated, _ = train_env.step(a)
             log_probs.append(dist.log_prob(torch.tensor(a, device=device)))

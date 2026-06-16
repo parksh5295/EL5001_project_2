@@ -42,13 +42,21 @@ class BaseTab:
     def skey(self, s):
         return discretize_state(s, self.cfg.bins)
 
-    def egreedy(self, key, eps):
+    def egreedy(self, key, eps, valid_actions: list[int]):
+        if not valid_actions:
+            return 0
         if self.rng.random() < eps:
-            return self.rng.randrange(self.action_size)
-        return int(np.argmax(self.q[key]))
+            return self.rng.choice(valid_actions)
+        qvals = self.q[key]
+        best = max(valid_actions, key=lambda a: qvals[a])
+        return int(best)
 
-    def greedy(self, key):
-        return int(np.argmax(self.q[key]))
+    def greedy(self, key, valid_actions: list[int]):
+        if not valid_actions:
+            return 0
+        qvals = self.q[key]
+        best = max(valid_actions, key=lambda a: qvals[a])
+        return int(best)
 
 
 class MC(BaseTab):
@@ -65,7 +73,8 @@ class MC(BaseTab):
             traj = []
             while not done:
                 k = self.skey(s)
-                a = self.egreedy(k, eps)
+                valid_actions = np.flatnonzero(env.get_action_mask()).tolist()
+                a = self.egreedy(k, eps, valid_actions)
                 ns, r, t, tr, _ = env.step(a)
                 traj.append((k, a, r))
                 s = ns
@@ -90,7 +99,8 @@ class SARSA(BaseTab):
         for _ in range(episodes):
             s, _ = env.reset()
             k = self.skey(s)
-            a = self.egreedy(k, eps)
+            valid_actions = np.flatnonzero(env.get_action_mask()).tolist()
+            a = self.egreedy(k, eps, valid_actions)
             done = False
             while not done:
                 ns, r, t, tr, _ = env.step(a)
@@ -99,7 +109,8 @@ class SARSA(BaseTab):
                 if done:
                     target = r
                 else:
-                    na = self.egreedy(nk, eps)
+                    valid_actions = np.flatnonzero(env.get_action_mask()).tolist()
+                    na = self.egreedy(nk, eps, valid_actions)
                     target = r + self.cfg.gamma * self.q[nk][na]
                 self.q[k][a] += self.cfg.alpha * (target - self.q[k][a])
                 if done:
@@ -116,7 +127,8 @@ class QLearning(BaseTab):
             done = False
             while not done:
                 k = self.skey(s)
-                a = self.egreedy(k, eps)
+                valid_actions = np.flatnonzero(env.get_action_mask()).tolist()
+                a = self.egreedy(k, eps, valid_actions)
                 ns, r, t, tr, _ = env.step(a)
                 done = t or tr
                 nk = self.skey(ns)
@@ -135,7 +147,8 @@ def evaluate(agent: BaseTab, env: StreamThreatEnv, episodes: int):
         steps = 0
         final_info = {}
         while not done:
-            a = agent.greedy(agent.skey(s))
+            valid_actions = np.flatnonzero(env.get_action_mask()).tolist()
+            a = agent.greedy(agent.skey(s), valid_actions)
             s, r, t, tr, info = env.step(a)
             ep_return += r
             steps += 1

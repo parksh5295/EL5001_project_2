@@ -34,6 +34,11 @@ class ActorCritic(nn.Module):
         return self.actor(h), self.critic(h).squeeze(-1)
 
 
+def masked_logits(logits: torch.Tensor, action_mask: np.ndarray, device: torch.device):
+    mask_t = torch.tensor(action_mask, dtype=torch.bool, device=device).unsqueeze(0)
+    return logits.masked_fill(~mask_t, -1e9)
+
+
 def eval_policy(model: ActorCritic, env: StreamThreatEnv, episodes: int, device: torch.device):
     model.eval()
     ev = StreamEval(labels=env.labels)
@@ -47,6 +52,7 @@ def eval_policy(model: ActorCritic, env: StreamThreatEnv, episodes: int, device:
             while not done:
                 s_t = torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0)
                 logits, _ = model(s_t)
+                logits = masked_logits(logits, env.get_action_mask(), device)
                 dist = torch.distributions.Categorical(logits=logits)
                 a = int(torch.argmax(dist.logits, dim=1).item())
                 s, r, terminated, truncated, info = env.step(a)
@@ -140,6 +146,7 @@ def main():
         while not done:
             s_t = torch.tensor(s, dtype=torch.float32, device=device).unsqueeze(0)
             logits, value = model(s_t)
+            logits = masked_logits(logits, train_env.get_action_mask(), device)
             dist = torch.distributions.Categorical(logits=logits)
             a = int(dist.sample().item())
             ns, r, terminated, truncated, _ = train_env.step(a)
