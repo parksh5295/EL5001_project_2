@@ -169,6 +169,12 @@ def main():
                     "segment_boundary_precision": metric.get("segment_boundary_precision"),
                     "segment_boundary_recall": metric.get("segment_boundary_recall"),
                     "segment_boundary_f1": metric.get("segment_boundary_f1"),
+                    "action_wait_ratio": metric.get("action_wait_ratio"),
+                    "action_start_ratio": metric.get("action_start_ratio"),
+                    "action_end_ratio": metric.get("action_end_ratio"),
+                    "invalid_action_ratio": metric.get("invalid_action_ratio"),
+                    "attack_step_pred_coverage": metric.get("attack_step_pred_coverage"),
+                    "attack_step_overlap_hit": metric.get("attack_step_overlap_hit"),
                 }
             )
     for algo, entry in summary["deep"].items():
@@ -192,6 +198,12 @@ def main():
                     "segment_boundary_precision": metric.get("segment_boundary_precision"),
                     "segment_boundary_recall": metric.get("segment_boundary_recall"),
                     "segment_boundary_f1": metric.get("segment_boundary_f1"),
+                    "action_wait_ratio": metric.get("action_wait_ratio"),
+                    "action_start_ratio": metric.get("action_start_ratio"),
+                    "action_end_ratio": metric.get("action_end_ratio"),
+                    "invalid_action_ratio": metric.get("invalid_action_ratio"),
+                    "attack_step_pred_coverage": metric.get("attack_step_pred_coverage"),
+                    "attack_step_overlap_hit": metric.get("attack_step_overlap_hit"),
                 }
             )
 
@@ -215,6 +227,12 @@ def main():
                 "segment_boundary_precision",
                 "segment_boundary_recall",
                 "segment_boundary_f1",
+                "action_wait_ratio",
+                "action_start_ratio",
+                "action_end_ratio",
+                "invalid_action_ratio",
+                "attack_step_pred_coverage",
+                "attack_step_overlap_hit",
             ],
         )
         writer.writeheader()

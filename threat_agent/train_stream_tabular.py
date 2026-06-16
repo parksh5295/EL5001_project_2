@@ -149,8 +149,32 @@ def evaluate(agent: BaseTab, env: StreamThreatEnv, episodes: int):
             boundary_tp=final_info.get("boundary_tp", 0),
             boundary_fp=final_info.get("boundary_fp", 0),
             boundary_fn=final_info.get("boundary_fn", 0),
+            action_counts=final_info.get("episode_action_counts", {}),
+            reward_terms=final_info.get("episode_reward_terms", {}),
+            attack_step_stats=final_info.get("episode_attack_step_stats", {}),
         )
     return ev.summary()
+
+
+def print_seglog(tag: str, metric: dict):
+    if not metric:
+        return
+    print(
+        "[SEGLOG] {} "
+        "micro_f1={:.4f} boundary_f1={:.4f} "
+        "wait={:.3f} start={:.3f} end={:.3f} invalid={:.3f} "
+        "atk_cov={:.3f} atk_hit={:.3f}".format(
+            tag,
+            float(metric.get("event_micro_f1", 0.0)),
+            float(metric.get("segment_boundary_f1", 0.0)),
+            float(metric.get("action_wait_ratio", 0.0)),
+            float(metric.get("action_start_ratio", 0.0)),
+            float(metric.get("action_end_ratio", 0.0)),
+            float(metric.get("invalid_action_ratio", 0.0)),
+            float(metric.get("attack_step_pred_coverage", 0.0)),
+            float(metric.get("attack_step_overlap_hit", 0.0)),
+        )
+    )
 
 
 def parse_args():
@@ -201,6 +225,8 @@ def main():
         ag.train(train_env, args.episodes)
         report[name] = {"val": evaluate(ag, val_env, args.eval_episodes), "test": evaluate(ag, test_env, args.eval_episodes)}
         print(f"[{name}] val={report[name]['val']} test={report[name]['test']}")
+        print_seglog(f"{name}/val/final", report[name]["val"])
+        print_seglog(f"{name}/test/final", report[name]["test"])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"Saved metrics: {args.output.resolve()}")

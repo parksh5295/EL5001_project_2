@@ -224,6 +224,21 @@ class StreamThreatEnv:
         self._boundary_tp = 0
         self._boundary_fp = 0
         self._boundary_fn = 0
+        self._reward_terms = {
+            "event_f1_reward": 0.0,
+            "boundary_bonus": 0.0,
+            "wait_penalty": 0.0,
+            "invalid_op_penalty": 0.0,
+            "missed_attack_penalty": 0.0,
+            "false_attack_penalty": 0.0,
+            "attack_mismatch_penalty": 0.0,
+        }
+        self._action_counts = {"wait": 0, "start": 0, "end": 0, "invalid": 0}
+        self._attack_step_stats = {
+            "attack_steps": 0,
+            "attack_steps_with_pred": 0,
+            "attack_steps_with_overlap": 0,
+        }
         self.idx = 0
         self.step_count = 0
         self.done = False
@@ -283,6 +298,21 @@ class StreamThreatEnv:
         self._boundary_tp = 0
         self._boundary_fp = 0
         self._boundary_fn = 0
+        self._reward_terms = {
+            "event_f1_reward": 0.0,
+            "boundary_bonus": 0.0,
+            "wait_penalty": 0.0,
+            "invalid_op_penalty": 0.0,
+            "missed_attack_penalty": 0.0,
+            "false_attack_penalty": 0.0,
+            "attack_mismatch_penalty": 0.0,
+        }
+        self._action_counts = {"wait": 0, "start": 0, "end": 0, "invalid": 0}
+        self._attack_step_stats = {
+            "attack_steps": 0,
+            "attack_steps_with_pred": 0,
+            "attack_steps_with_overlap": 0,
+        }
         self.step_count = 0
         self.done = False
         return self._get_state(), self._get_info()
@@ -404,27 +434,37 @@ class StreamThreatEnv:
 
         if op == "wait":
             reward -= self.cfg.wait_cost
+            self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
+            self._action_counts["wait"] += 1
         elif op == "start":
+            self._action_counts["start"] += 1
             if tactic is None or tactic in self.active_tactics:
                 invalid_op = True
                 reward -= self.cfg.invalid_op_penalty
+                self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
+                self._action_counts["invalid"] += 1
             else:
                 self.active_tactics.add(tactic)
                 if self._is_near_boundary(self._gt_start_points.get(tactic, set())):
                     boundary_hit = True
                     reward += self.cfg.boundary_bonus
+                    self._reward_terms["boundary_bonus"] += self.cfg.boundary_bonus
                     self._boundary_tp += 1
                 else:
                     self._boundary_fp += 1
         elif op == "end":
+            self._action_counts["end"] += 1
             if tactic is None or tactic not in self.active_tactics:
                 invalid_op = True
                 reward -= self.cfg.invalid_op_penalty
+                self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
+                self._action_counts["invalid"] += 1
             else:
                 self.active_tactics.remove(tactic)
                 if self._is_near_boundary(self._gt_end_points.get(tactic, set())):
                     boundary_hit = True
                     reward += self.cfg.boundary_bonus
+                    self._reward_terms["boundary_bonus"] += self.cfg.boundary_bonus
                     self._boundary_tp += 1
                 else:
                     self._boundary_fp += 1
@@ -433,15 +473,26 @@ class StreamThreatEnv:
         pred_set = set(self.active_tactics)
         step_f1 = self._f1_for_sets(pred_set, gt_set, benign_match_reward=self.cfg.benign_match_reward)
         reward += self.cfg.event_f1_reward_scale * step_f1
+        self._reward_terms["event_f1_reward"] += self.cfg.event_f1_reward_scale * step_f1
         if gt_set and not pred_set:
             # Strongly discourage "always WAIT/empty" behavior during true attack windows.
             reward -= self.cfg.missed_attack_step_penalty
+            self._reward_terms["missed_attack_penalty"] -= self.cfg.missed_attack_step_penalty
         elif not gt_set and pred_set:
             # Discourage over-triggering attack state on benign windows.
             reward -= self.cfg.false_attack_step_penalty
+            self._reward_terms["false_attack_penalty"] -= self.cfg.false_attack_step_penalty
         elif gt_set and pred_set and step_f1 <= 1e-8:
             # Extra penalty for completely wrong active tactic set on attack windows.
             reward -= self.cfg.attack_mismatch_penalty
+            self._reward_terms["attack_mismatch_penalty"] -= self.cfg.attack_mismatch_penalty
+
+        if gt_set:
+            self._attack_step_stats["attack_steps"] += 1
+            if pred_set:
+                self._attack_step_stats["attack_steps_with_pred"] += 1
+            if pred_set & gt_set:
+                self._attack_step_stats["attack_steps_with_overlap"] += 1
 
         self._pred_trace.append(sorted(pred_set))
         self._gt_trace.append(sorted(gt_set))
@@ -478,6 +529,9 @@ class StreamThreatEnv:
             info["boundary_tp"] = self._boundary_tp
             info["boundary_fp"] = self._boundary_fp
             info["boundary_fn"] = self._boundary_fn
+            info["episode_reward_terms"] = dict(self._reward_terms)
+            info["episode_action_counts"] = dict(self._action_counts)
+            info["episode_attack_step_stats"] = dict(self._attack_step_stats)
 
         return self._get_state(), float(reward), terminated, truncated, info
 

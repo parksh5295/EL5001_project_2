@@ -112,6 +112,9 @@ class StreamEval:
         boundary_tp: int = 0,
         boundary_fp: int = 0,
         boundary_fn: int = 0,
+        action_counts: dict | None = None,
+        reward_terms: dict | None = None,
+        attack_step_stats: dict | None = None,
     ):
         self.segment_records.append(
             {
@@ -122,6 +125,9 @@ class StreamEval:
                 "boundary_tp": boundary_tp,
                 "boundary_fp": boundary_fp,
                 "boundary_fn": boundary_fn,
+                "action_counts": action_counts or {},
+                "reward_terms": reward_terms or {},
+                "attack_step_stats": attack_step_stats or {},
             }
         )
 
@@ -146,6 +152,9 @@ class StreamEval:
         episode_returns = []
         episode_steps = []
         btp = bfp = bfn = 0
+        action_wait = action_start = action_end = action_invalid = 0
+        reward_terms_sum = Counter()
+        attack_steps = attack_steps_with_pred = attack_steps_with_overlap = 0
 
         for rec in self.segment_records:
             pred_trace = rec["pred_trace"]
@@ -155,6 +164,17 @@ class StreamEval:
             btp += int(rec.get("boundary_tp", 0))
             bfp += int(rec.get("boundary_fp", 0))
             bfn += int(rec.get("boundary_fn", 0))
+            ac = rec.get("action_counts", {})
+            action_wait += int(ac.get("wait", 0))
+            action_start += int(ac.get("start", 0))
+            action_end += int(ac.get("end", 0))
+            action_invalid += int(ac.get("invalid", 0))
+            for k, v in (rec.get("reward_terms", {}) or {}).items():
+                reward_terms_sum[k] += float(v)
+            ast = rec.get("attack_step_stats", {})
+            attack_steps += int(ast.get("attack_steps", 0))
+            attack_steps_with_pred += int(ast.get("attack_steps_with_pred", 0))
+            attack_steps_with_overlap += int(ast.get("attack_steps_with_overlap", 0))
 
             for pred_set_raw, gt_set_raw in zip(pred_trace, gt_trace):
                 pred_set = set(pred_set_raw)
@@ -223,6 +243,17 @@ class StreamEval:
         accuracy = exact_match_total / total_steps if total_steps else 0.0
         balanced_accuracy = mean(recalls_for_bal_acc) if recalls_for_bal_acc else 0.0
         macro_f1 = mean(f1_for_macro) if f1_for_macro else 0.0
+        total_actions = action_wait + action_start + action_end
+        action_wait_ratio = action_wait / total_actions if total_actions else 0.0
+        action_start_ratio = action_start / total_actions if total_actions else 0.0
+        action_end_ratio = action_end / total_actions if total_actions else 0.0
+        invalid_action_ratio = action_invalid / total_actions if total_actions else 0.0
+        attack_step_pred_coverage = (
+            attack_steps_with_pred / attack_steps if attack_steps else 0.0
+        )
+        attack_step_overlap_hit = (
+            attack_steps_with_overlap / attack_steps if attack_steps else 0.0
+        )
 
         return {
             "accuracy": accuracy,
@@ -242,5 +273,12 @@ class StreamEval:
             "majority_baseline_label": "benign",
             "majority_gain": accuracy - majority_baseline_accuracy,
             "avg_detection_delay": None,
+            "action_wait_ratio": action_wait_ratio,
+            "action_start_ratio": action_start_ratio,
+            "action_end_ratio": action_end_ratio,
+            "invalid_action_ratio": invalid_action_ratio,
+            "attack_step_pred_coverage": attack_step_pred_coverage,
+            "attack_step_overlap_hit": attack_step_overlap_hit,
+            "reward_terms_sum": dict(reward_terms_sum),
         }
 
