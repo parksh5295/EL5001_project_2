@@ -61,16 +61,6 @@ results/stream_compare_summary.json
 results/stream_compare_summary.csv
 
 
-Coarse 공격군(1~2개) 전용 RL 파이프라인
-1) 2개 그룹(access_lateral / execution_control)
-./run_all_compare_coarse.sh --split-mode source --split-ratio "0.7,0.15,0.15" --events-per-stream 100 --tabular-episodes 3000 --deep-episodes 3000 --eval-episodes 100 --decision-stride 20 --coarse-mode two
-2) 1개 그룹(attack_generic)
-./run_all_compare_coarse.sh --split-mode source --split-ratio "0.7,0.15,0.15" --events-per-stream 100 --tabular-episodes 3000 --deep-episodes 3000 --eval-episodes 100 --decision-stride 20 --coarse-mode one
-3) 결과 파일(기존과 분리 저장)
-results/stream_compare_summary_coarse.json
-results/stream_compare_summary_coarse.csv
-results/events_coarse_summary.json
-
 Source timeline 기반 run 추출 (다신호 + confidence)
 python -m threat_agent.extract_confident_runs --input results/events_weak_labeled.ndjson --output-json results/confident_runs_summary.json --output-ndjson results/confident_runs.ndjson --min-run-len 3 --merge-gap-events 2
 출력:
@@ -80,6 +70,7 @@ results/confident_runs.ndjson
 Run 단위 삽입형 stream 파이프라인 (기존 stream_builder 대체형)
 1) run 기반 stream 생성 + RL 비교 one-shot
 ./run_all_compare_runs.sh --split-mode source --split-ratio "0.7,0.15,0.15" --num-streams 3000 --events-per-stream 120 --min-confidence medium --decision-stride 16 --tabular-episodes 3000 --deep-episodes 3000 --eval-episodes 100
+   (기본: 모든 tactic 사용, 일부만 쓰려면 --use-tactics "Credential Access,Discovery")
 2) 결과 파일(별도 저장)
 results/stream_compare_summary_runs.json
 results/stream_compare_summary_runs.csv

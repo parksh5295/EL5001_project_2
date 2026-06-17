@@ -31,6 +31,12 @@ def parse_args():
     p.add_argument("--intra-run-benign-max", type=int, default=2)
     p.add_argument("--max-events-per-run", type=int, default=200)
     p.add_argument("--min-confidence", choices=("low", "medium", "high"), default="medium")
+    p.add_argument(
+        "--use-tactics",
+        type=str,
+        default="",
+        help="Comma-separated tactic allowlist. Empty means use all tactics.",
+    )
     p.add_argument("--split-mode", choices=("source", "run"), default="source")
     p.add_argument("--split-ratio", type=str, default="0.7,0.15,0.15")
     p.add_argument("--seed", type=int, default=42)
@@ -48,6 +54,11 @@ def parse_split_ratio(raw: str) -> tuple[float, float, float]:
     if total <= 0:
         raise ValueError("--split-ratio sum must be > 0")
     return (ratios[0] / total, ratios[1] / total, ratios[2] / total)
+
+
+def parse_tactic_allowlist(raw: str) -> set[str]:
+    vals = [v.strip() for v in str(raw or "").split(",")]
+    return {v for v in vals if v}
 
 
 def split_counts(total: int, ratios: tuple[float, float, float]) -> dict[str, int]:
@@ -208,6 +219,10 @@ def main():
     events_by_source = load_events_by_source(args.events_input)
     run_rows = load_runs(args.runs_input, args.min_confidence)
     runs = attach_run_events(run_rows, events_by_source, args.max_events_per_run)
+    tactic_allow = parse_tactic_allowlist(args.use_tactics)
+    all_run_tactics = sorted({str(r.get("tactic") or "") for r in runs if str(r.get("tactic") or "")})
+    if tactic_allow:
+        runs = [r for r in runs if r["tactic"] in tactic_allow]
     if not runs:
         raise RuntimeError("No valid runs found after confidence filter and event attachment.")
 
@@ -421,6 +436,9 @@ def main():
         "total_events_written": total_written,
         "seed": args.seed,
         "min_confidence": args.min_confidence,
+        "use_tactics": sorted(tactic_allow),
+        "available_tactics_before_filter": all_run_tactics,
+        "used_tactics_after_filter": sorted({r["tactic"] for r in runs}),
         "num_run_units_total": len(runs),
         "num_run_units_per_split": {s: len(split_runs[s]) for s in SPLITS},
         "per_stream_stats": per_stream_stats,

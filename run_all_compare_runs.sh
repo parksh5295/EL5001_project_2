@@ -26,6 +26,7 @@ EVENTS_PER_STREAM="120"
 SPLIT_MODE="source"
 SPLIT_RATIO="0.7,0.15,0.15"
 MIN_CONFIDENCE="medium"
+USE_TACTICS=""
 SEED="42"
 TABULAR_EPISODES="1000"
 DEEP_EPISODES="1000"
@@ -44,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --split-mode) SPLIT_MODE="$2"; shift 2 ;;
     --split-ratio) SPLIT_RATIO="$2"; shift 2 ;;
     --min-confidence) MIN_CONFIDENCE="$2"; shift 2 ;;
+    --use-tactics) USE_TACTICS="$2"; shift 2 ;;
     --seed) SEED="$2"; shift 2 ;;
     --tabular-episodes) TABULAR_EPISODES="$2"; shift 2 ;;
     --deep-episodes) DEEP_EPISODES="$2"; shift 2 ;;
@@ -106,6 +108,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
     --split-mode "$SPLIT_MODE" \
     --split-ratio "$SPLIT_RATIO" \
     --min-confidence "$MIN_CONFIDENCE" \
+    --use-tactics "$USE_TACTICS" \
     --seed "$SEED"
 else
   if [[ ! -f "$STREAM_OUT" ]]; then
