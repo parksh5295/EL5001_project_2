@@ -107,6 +107,7 @@ def parse_args():
     p.add_argument("--episodes", type=int, default=1500)
     p.add_argument("--max-steps", type=int, default=250)
     p.add_argument("--window-size", type=int, default=25)
+    p.add_argument("--decision-stride", type=int, default=1)
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--entropy-coef", type=float, default=0.01)
@@ -126,7 +127,12 @@ def main():
     torch.manual_seed(args.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    cfg = StreamEnvConfig(window_size=args.window_size, max_steps=args.max_steps, seed=args.seed)
+    cfg = StreamEnvConfig(
+        window_size=args.window_size,
+        max_steps=args.max_steps,
+        decision_stride=max(1, int(args.decision_stride)),
+        seed=args.seed,
+    )
     train_path = args.train_stream_data or args.stream_data
     val_path = args.val_stream_data or args.stream_data
     test_path = args.test_stream_data or args.stream_data

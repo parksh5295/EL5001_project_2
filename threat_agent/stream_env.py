@@ -34,6 +34,7 @@ DEFAULT_EVENT_ID_BINS = [
 class StreamEnvConfig:
     window_size: int = 25
     max_steps: int = 300
+    decision_stride: int = 1
     event_f1_reward_scale: float = 5.0
     benign_match_reward: float = 0.0
     missed_attack_step_penalty: float = 6.0
@@ -276,7 +277,10 @@ class StreamThreatEnv:
     def reset(self, stream: dict | None = None):
         self.current_stream = stream if stream is not None else self.rng.choice(self.streams)
         self.stream_events = self._load_stream_events(self.current_stream)
-        self.idx = min(self.cfg.window_size - 1, len(self.stream_events) - 1)
+        if self.cfg.decision_stride > 1:
+            self.idx = 0
+        else:
+            self.idx = min(self.cfg.window_size - 1, len(self.stream_events) - 1)
         self._gt_tactics = []
         for e in self.stream_events:
             if int(e.get("gt_attack_active", 0)) == 1:
@@ -329,6 +333,9 @@ class StreamThreatEnv:
         return self._get_state(), self._get_info()
 
     def _window(self):
+        if self.cfg.decision_stride > 1:
+            end = min(len(self.stream_events), self.idx + self.cfg.decision_stride)
+            return self.stream_events[self.idx:end]
         start = max(0, self.idx - self.cfg.window_size + 1)
         return self.stream_events[start : self.idx + 1]
 
@@ -389,6 +396,11 @@ class StreamThreatEnv:
             return None
         return self._gt_tactics[self.idx]
 
+    def _chunk_bounds(self) -> tuple[int, int]:
+        start = self.idx
+        end = min(len(self.stream_events), self.idx + max(1, int(self.cfg.decision_stride)))
+        return start, end
+
     def _first_attack_pos(self):
         for i, e in enumerate(self.stream_events):
             if int(e.get("gt_attack_active", 0)) == 1:
@@ -407,9 +419,17 @@ class StreamThreatEnv:
         tol = max(0, int(self.cfg.boundary_tolerance))
         return any(abs(self.idx - p) <= tol for p in points)
 
+    def _is_boundary_in_chunk(self, points: set[int], chunk_start: int, chunk_end: int) -> bool:
+        # chunk_end is exclusive, but boundary points for segment end can be equal to len(stream).
+        tol = max(0, int(self.cfg.boundary_tolerance))
+        lo = chunk_start - tol
+        hi = chunk_end + tol
+        return any(lo <= p <= hi for p in points)
+
     def _advance(self):
-        if self.idx < len(self.stream_events) - 1 and self.step_count < self.cfg.max_steps:
-            self.idx += 1
+        stride = max(1, int(self.cfg.decision_stride))
+        if (self.idx + stride) < len(self.stream_events) and self.step_count < self.cfg.max_steps:
+            self.idx = min(len(self.stream_events) - 1, self.idx + stride)
             return True
         return False
 
@@ -448,6 +468,7 @@ class StreamThreatEnv:
 
         self.step_count += 1
         info = self._get_info()
+        chunk_start, chunk_end = self._chunk_bounds()
         terminated = False
         truncated = False
         reward = 0.0
@@ -489,7 +510,7 @@ class StreamThreatEnv:
                     self._reward_terms["flip_flop_penalty"] -= self.cfg.flip_flop_penalty
                 self._action_counts["start"] += 1
                 self.active_tactic = tactic
-                if self._is_near_boundary(self._gt_start_points.get(tactic, set())):
+                if self._is_boundary_in_chunk(self._gt_start_points.get(tactic, set()), chunk_start, chunk_end):
                     boundary_hit = True
                     reward += self.cfg.boundary_bonus
                     self._reward_terms["boundary_bonus"] += self.cfg.boundary_bonus
@@ -521,7 +542,7 @@ class StreamThreatEnv:
                     self._reward_terms["flip_flop_penalty"] -= self.cfg.flip_flop_penalty
                 self._action_counts["end"] += 1
                 self.active_tactic = None
-                if self._is_near_boundary(self._gt_end_points.get(tactic, set())):
+                if self._is_boundary_in_chunk(self._gt_end_points.get(tactic, set()), chunk_start, chunk_end):
                     boundary_hit = True
                     reward += self.cfg.boundary_bonus
                     self._reward_terms["boundary_bonus"] += self.cfg.boundary_bonus
@@ -530,33 +551,38 @@ class StreamThreatEnv:
                     self._boundary_fp += 1
                 self._last_non_wait_action = ("end", tactic)
 
-        gt_tactic = self._current_gt_tactic()
         pred_tactic = self.active_tactic
-        step_f1 = self._f1_for_labels(pred_tactic, gt_tactic, benign_match_reward=self.cfg.benign_match_reward)
-        reward += self.cfg.event_f1_reward_scale * step_f1
-        self._reward_terms["event_f1_reward"] += self.cfg.event_f1_reward_scale * step_f1
-        if gt_tactic is not None and pred_tactic is None:
-            # Strongly discourage "always WAIT/empty" behavior during true attack windows.
-            reward -= self.cfg.missed_attack_step_penalty
-            self._reward_terms["missed_attack_penalty"] -= self.cfg.missed_attack_step_penalty
-        elif gt_tactic is None and pred_tactic is not None:
-            # Discourage over-triggering attack state on benign windows.
-            reward -= self.cfg.false_attack_step_penalty
-            self._reward_terms["false_attack_penalty"] -= self.cfg.false_attack_step_penalty
-        elif gt_tactic is not None and pred_tactic is not None and step_f1 <= 1e-8:
-            # Extra penalty for completely wrong active tactic set on attack windows.
-            reward -= self.cfg.attack_mismatch_penalty
-            self._reward_terms["attack_mismatch_penalty"] -= self.cfg.attack_mismatch_penalty
+        step_f1 = 0.0
+        span = max(1, chunk_end - chunk_start)
+        for i in range(chunk_start, chunk_end):
+            gt_tactic_i = self._gt_tactics[i]
+            f1_i = self._f1_for_labels(pred_tactic, gt_tactic_i, benign_match_reward=self.cfg.benign_match_reward)
+            step_f1 += f1_i
+            reward += self.cfg.event_f1_reward_scale * f1_i
+            self._reward_terms["event_f1_reward"] += self.cfg.event_f1_reward_scale * f1_i
+            if gt_tactic_i is not None and pred_tactic is None:
+                # Strongly discourage "always WAIT/empty" behavior during true attack windows.
+                reward -= self.cfg.missed_attack_step_penalty
+                self._reward_terms["missed_attack_penalty"] -= self.cfg.missed_attack_step_penalty
+            elif gt_tactic_i is None and pred_tactic is not None:
+                # Discourage over-triggering attack state on benign windows.
+                reward -= self.cfg.false_attack_step_penalty
+                self._reward_terms["false_attack_penalty"] -= self.cfg.false_attack_step_penalty
+            elif gt_tactic_i is not None and pred_tactic is not None and f1_i <= 1e-8:
+                # Extra penalty for completely wrong active tactic set on attack windows.
+                reward -= self.cfg.attack_mismatch_penalty
+                self._reward_terms["attack_mismatch_penalty"] -= self.cfg.attack_mismatch_penalty
 
-        if gt_tactic is not None:
-            self._attack_step_stats["attack_steps"] += 1
-            if pred_tactic is not None:
-                self._attack_step_stats["attack_steps_with_pred"] += 1
-            if pred_tactic == gt_tactic:
-                self._attack_step_stats["attack_steps_with_overlap"] += 1
+            if gt_tactic_i is not None:
+                self._attack_step_stats["attack_steps"] += 1
+                if pred_tactic is not None:
+                    self._attack_step_stats["attack_steps_with_pred"] += 1
+                if pred_tactic == gt_tactic_i:
+                    self._attack_step_stats["attack_steps_with_overlap"] += 1
 
-        self._pred_trace.append([pred_tactic] if pred_tactic is not None else [])
-        self._gt_trace.append([gt_tactic] if gt_tactic is not None else [])
+            self._pred_trace.append([pred_tactic] if pred_tactic is not None else [])
+            self._gt_trace.append([gt_tactic_i] if gt_tactic_i is not None else [])
+        step_f1 /= float(span)
 
         moved = self._advance()
         if not moved:
@@ -574,8 +600,11 @@ class StreamThreatEnv:
                 "boundary_hit": boundary_hit,
                 "invalid_op": invalid_op,
                 "pred_active_tactics": [pred_tactic] if pred_tactic is not None else [],
-                "gt_active_tactics": [gt_tactic] if gt_tactic is not None else [],
+                "gt_active_tactics": [self._current_gt_tactic()] if self._current_gt_tactic() is not None else [],
                 "step_event_f1": step_f1,
+                "decision_stride": int(self.cfg.decision_stride),
+                "chunk_start_idx": chunk_start,
+                "chunk_end_idx_exclusive": chunk_end,
             }
         )
         if terminated:

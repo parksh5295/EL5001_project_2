@@ -30,6 +30,7 @@ SEED="42"
 TABULAR_EPISODES="1000"
 DEEP_EPISODES="1000"
 EVAL_EPISODES="30"
+DECISION_STRIDE="1"
 SKIP_BUILD="false"
 
 # Backward-compatible positional args (up to 9, until first --option)
@@ -63,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --tabular-episodes) TABULAR_EPISODES="$2"; shift 2 ;;
     --deep-episodes) DEEP_EPISODES="$2"; shift 2 ;;
     --eval-episodes) EVAL_EPISODES="$2"; shift 2 ;;
+    --decision-stride) DECISION_STRIDE="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD="true"; shift 1 ;;
     *)
       echo "Unknown option: $1" >&2
@@ -135,6 +137,7 @@ echo "[3/3] Run stream comparison experiments"
   --val-stream-data "$VAL_STREAM_OUT" \
   --test-stream-data "$TEST_STREAM_OUT" \
   --seed "$SEED" \
+  --decision-stride "$DECISION_STRIDE" \
   --tabular-episodes "$TABULAR_EPISODES" \
   --deep-episodes "$DEEP_EPISODES" \
   --eval-episodes "$EVAL_EPISODES"

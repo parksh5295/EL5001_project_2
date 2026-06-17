@@ -10,6 +10,7 @@ param(
     [int]$TabularEpisodes = 1000,
     [int]$DeepEpisodes = 1000,
     [int]$EvalEpisodes = 30,
+    [int]$DecisionStride = 1,
     [switch]$SkipBuild
 )
 
@@ -90,6 +91,7 @@ Invoke-Checked @(
     "--val-stream-data", "$valStreamOut",
     "--test-stream-data", "$testStreamOut",
     "--seed", "$Seed",
+    "--decision-stride", "$DecisionStride",
     "--tabular-episodes", "$TabularEpisodes",
     "--deep-episodes", "$DeepEpisodes",
     "--eval-episodes", "$EvalEpisodes"

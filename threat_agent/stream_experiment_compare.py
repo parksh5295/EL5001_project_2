@@ -32,6 +32,7 @@ def parse_args():
     p.add_argument("--tabular-episodes", type=int, default=3000)
     p.add_argument("--deep-episodes", type=int, default=1500)
     p.add_argument("--eval-episodes", type=int, default=100)
+    p.add_argument("--decision-stride", type=int, default=1)
     p.add_argument("--output-json", type=Path, default=Path("results/stream_compare_summary.json"))
     p.add_argument("--output-csv", type=Path, default=Path("results/stream_compare_summary.csv"))
     return p.parse_args()
@@ -71,6 +72,8 @@ def main():
             str(args.eval_episodes),
             "--seed",
             str(args.seed),
+            "--decision-stride",
+            str(args.decision_stride),
             "--output",
             str(tab_path),
         ]
@@ -89,6 +92,8 @@ def main():
             str(args.eval_episodes),
             "--seed",
             str(args.seed),
+            "--decision-stride",
+            str(args.decision_stride),
             "--save-model",
             str(root / "checkpoints" / "stream_dqn.pt"),
             "--metrics-output",
@@ -109,6 +114,8 @@ def main():
             str(args.eval_episodes),
             "--seed",
             str(args.seed),
+            "--decision-stride",
+            str(args.decision_stride),
             "--save-model",
             str(root / "checkpoints" / "stream_reinforce.pt"),
             "--metrics-output",
@@ -129,6 +136,8 @@ def main():
             str(args.eval_episodes),
             "--seed",
             str(args.seed),
+            "--decision-stride",
+            str(args.decision_stride),
             "--save-model",
             str(root / "checkpoints" / "stream_a2c.pt"),
             "--metrics-output",
