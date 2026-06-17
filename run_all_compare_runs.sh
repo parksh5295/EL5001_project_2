@@ -17,10 +17,6 @@ else
 fi
 
 INPUT_EVENTS="events.ndjson"
-WEAK_LABELED_OUT="results/events_weak_labeled.ndjson"
-RUNS_SUMMARY_OUT="results/confident_runs_summary.json"
-RUNS_OUT="results/confident_runs.ndjson"
-STREAM_OUT="results/stream_events_runs.ndjson"
 NUM_STREAMS="3000"
 EVENTS_PER_STREAM="120"
 SPLIT_MODE="source"
@@ -36,6 +32,8 @@ EVAL_EPISODES="30"
 DECISION_STRIDE="1"
 SKIP_BUILD="false"
 USER_SET_STREAM_OUT="false"
+USER_SET_OUTPUT_DIR="false"
+OUTPUT_DIR=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -43,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     --weak-labeled-out) WEAK_LABELED_OUT="$2"; shift 2 ;;
     --runs-out) RUNS_OUT="$2"; shift 2 ;;
     --stream-out) STREAM_OUT="$2"; USER_SET_STREAM_OUT="true"; shift 2 ;;
+    --output-dir) OUTPUT_DIR="$2"; USER_SET_OUTPUT_DIR="true"; shift 2 ;;
     --num-streams) NUM_STREAMS="$2"; shift 2 ;;
     --events-per-stream) EVENTS_PER_STREAM="$2"; shift 2 ;;
     --split-mode) SPLIT_MODE="$2"; shift 2 ;;
@@ -75,8 +74,27 @@ if [[ -n "$USE_TACTICS" ]]; then
   fi
 fi
 
+if [[ "$USER_SET_OUTPUT_DIR" != "true" ]]; then
+  EXP_TAG="runs_tab${TABULAR_EPISODES}_deep${DEEP_EPISODES}_eval${EVAL_EPISODES}_stride${DECISION_STRIDE}_conf${MIN_CONFIDENCE}${TACTIC_SUFFIX}_seed${SEED}"
+  OUTPUT_DIR="results/${EXP_TAG}"
+fi
+mkdir -p "$OUTPUT_DIR"
+
+if [[ -z "${WEAK_LABELED_OUT:-}" ]]; then
+  WEAK_LABELED_OUT="${OUTPUT_DIR}/events_weak_labeled.ndjson"
+fi
+if [[ -z "${RUNS_SUMMARY_OUT:-}" ]]; then
+  RUNS_SUMMARY_OUT="${OUTPUT_DIR}/confident_runs_summary.json"
+fi
+if [[ -z "${RUNS_OUT:-}" ]]; then
+  RUNS_OUT="${OUTPUT_DIR}/confident_runs.ndjson"
+fi
+if [[ -z "${STREAM_OUT:-}" ]]; then
+  STREAM_OUT="${OUTPUT_DIR}/stream_events_runs.ndjson"
+fi
+
 if [[ -n "$TACTIC_SUFFIX" && "$USER_SET_STREAM_OUT" != "true" ]]; then
-  STREAM_OUT="results/stream_events_runs${TACTIC_SUFFIX}.ndjson"
+  STREAM_OUT="${OUTPUT_DIR}/stream_events_runs${TACTIC_SUFFIX}.ndjson"
 fi
 
 stream_dir="$(dirname "$STREAM_OUT")"
@@ -91,9 +109,10 @@ fi
 TRAIN_STREAM_OUT="${stream_dir}/${stream_stem}_train${stream_ext}"
 VAL_STREAM_OUT="${stream_dir}/${stream_stem}_val${stream_ext}"
 TEST_STREAM_OUT="${stream_dir}/${stream_stem}_test${stream_ext}"
-COMPARE_SUMMARY_JSON="results/stream_compare_summary_runs${TACTIC_SUFFIX}.json"
-COMPARE_SUMMARY_CSV="results/stream_compare_summary_runs${TACTIC_SUFFIX}.csv"
-RUNS_STREAM_SUMMARY_JSON="results/stream_runs_summary${TACTIC_SUFFIX}.json"
+COMPARE_SUMMARY_JSON="${OUTPUT_DIR}/stream_compare_summary_runs${TACTIC_SUFFIX}.json"
+COMPARE_SUMMARY_CSV="${OUTPUT_DIR}/stream_compare_summary_runs${TACTIC_SUFFIX}.csv"
+RUNS_STREAM_SUMMARY_JSON="${OUTPUT_DIR}/stream_runs_summary${TACTIC_SUFFIX}.json"
+WEAK_LABEL_SUMMARY_JSON="${OUTPUT_DIR}/events_weak_label_summary.json"
 
 if [[ ! -d ".venv" ]]; then
   echo "[prep] .venv가 없어 setup_pipenv.sh 실행"
@@ -110,7 +129,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
   "${PIPENV[@]}" run python -m threat_agent.stream_labeler \
     --input "$INPUT_EVENTS" \
     --output "$WEAK_LABELED_OUT" \
-    --summary-json results/events_weak_label_summary.json
+    --summary-json "$WEAK_LABEL_SUMMARY_JSON"
 
   echo "[2/4] Extract confident runs -> ${RUNS_OUT}"
   "${PIPENV[@]}" run python -m threat_agent.extract_confident_runs \
@@ -161,6 +180,7 @@ echo "[4/4] Run stream comparison experiments"
   --output-csv "$COMPARE_SUMMARY_CSV"
 
 echo "Done."
+echo "Output Dir  : $OUTPUT_DIR"
 echo "Summary JSON: $COMPARE_SUMMARY_JSON"
 echo "Summary CSV : $COMPARE_SUMMARY_CSV"
 

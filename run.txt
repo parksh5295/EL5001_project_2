@@ -73,6 +73,8 @@ Run 단위 삽입형 stream 파이프라인 (기존 stream_builder 대체형)
    (기본: 모든 tactic 사용, 일부만 쓰려면 --use-tactics "Credential Access,Discovery")
    (공격 삽입 강도 조절: --attack-runs-max 2 --intra-run-benign-prob 0.05)
    (run 품질 상향: --min-confidence high)
+   (저장 경로: 기본은 results/runs_tab..._deep..._eval..._stride... 폴더 자동 생성)
+   (직접 지정: --output-dir results/my_exp_001)
    사용 가능한 tactic:
    AutomatedTestingTools, Command and Control, Credential Access, Defense Evasion, Discovery, Execution, Lateral Movement, Persistence, Privilege Escalation
    tactic 지정 시 결과 파일명 자동 분리:
