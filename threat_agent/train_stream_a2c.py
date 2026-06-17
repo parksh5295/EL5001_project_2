@@ -120,6 +120,10 @@ def parse_args():
     return p.parse_args()
 
 
+def score_metric(metric: dict) -> float:
+    return float(metric.get("event_micro_f1", 0.0)) + 0.5 * float(metric.get("segment_boundary_f1", 0.0))
+
+
 def main():
     args = parse_args()
     random.seed(args.seed)
@@ -142,6 +146,10 @@ def main():
 
     model = ActorCritic(train_env.state_size, train_env.action_size).to(device)
     opt = optim.Adam(model.parameters(), lr=args.lr)
+    best_val = None
+    best_score = float("-inf")
+    best_state = None
+    best_ep = 0
 
     for ep in range(1, args.episodes + 1):
         s, _ = train_env.reset()
@@ -186,6 +194,17 @@ def main():
             val = eval_policy(model, val_env, args.eval_episodes, device)
             print(f"Episode {ep} val={val}")
             print_seglog(f"a2c/val/ep{ep}", val)
+            cur_score = score_metric(val)
+            if cur_score > best_score:
+                best_score = cur_score
+                best_val = val
+                best_ep = ep
+                best_state = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+                print(f"[BEST] ep={ep} score={cur_score:.4f}")
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+        print(f"[LOAD BEST] ep={best_ep} score={best_score:.4f}")
 
     args.save_model.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), args.save_model)
@@ -199,7 +218,16 @@ def main():
     args.metrics_output.parent.mkdir(parents=True, exist_ok=True)
     args.metrics_output.write_text(
         json.dumps(
-            {"algorithm": "stream_a2c", "val": val, "test": test, "episodes": args.episodes, "seed": args.seed},
+            {
+                "algorithm": "stream_a2c",
+                "val": val,
+                "test": test,
+                "best_val": best_val if best_val is not None else val,
+                "best_val_score": best_score if best_score != float("-inf") else score_metric(val),
+                "best_val_episode": best_ep if best_ep > 0 else args.episodes,
+                "episodes": args.episodes,
+                "seed": args.seed,
+            },
             indent=2,
         ),
         encoding="utf-8",

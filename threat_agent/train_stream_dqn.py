@@ -154,6 +154,10 @@ def parse_args():
     return p.parse_args()
 
 
+def score_metric(metric: dict) -> float:
+    return float(metric.get("event_micro_f1", 0.0)) + 0.5 * float(metric.get("segment_boundary_f1", 0.0))
+
+
 def main():
     args = parse_args()
     random.seed(args.seed)
@@ -182,6 +186,10 @@ def main():
     buf = Buffer(args.buffer_size)
     eps = args.epsilon_start
     gstep = 0
+    best_val = None
+    best_score = float("-inf")
+    best_state = None
+    best_ep = 0
 
     for ep in range(1, args.episodes + 1):
         s, _ = train_env.reset()
@@ -226,6 +234,17 @@ def main():
             val = eval_policy(net, val_env, args.eval_episodes, device)
             print(f"Episode {ep} eps={eps:.3f} val={val}")
             print_seglog(f"dqn/val/ep{ep}", val)
+            cur_score = score_metric(val)
+            if cur_score > best_score:
+                best_score = cur_score
+                best_val = val
+                best_ep = ep
+                best_state = {k: v.detach().cpu() for k, v in net.state_dict().items()}
+                print(f"[BEST] ep={ep} score={cur_score:.4f}")
+
+    if best_state is not None:
+        net.load_state_dict(best_state)
+        print(f"[LOAD BEST] ep={best_ep} score={best_score:.4f}")
 
     args.save_model.parent.mkdir(parents=True, exist_ok=True)
     torch.save(net.state_dict(), args.save_model)
@@ -245,6 +264,9 @@ def main():
                 "algorithm": "stream_dqn",
                 "val": val,
                 "test": test,
+                "best_val": best_val if best_val is not None else val,
+                "best_val_score": best_score if best_score != float("-inf") else score_metric(val),
+                "best_val_episode": best_ep if best_ep > 0 else args.episodes,
                 "episodes": args.episodes,
                 "seed": args.seed,
             },
