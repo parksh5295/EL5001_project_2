@@ -401,6 +401,20 @@ class StreamThreatEnv:
         end = min(len(self.stream_events), self.idx + max(1, int(self.cfg.decision_stride)))
         return start, end
 
+    def _chunk_gt_summary(self, chunk_start: int, chunk_end: int) -> tuple[str | None, int, int]:
+        counts: dict[str, int] = {}
+        attack_count = 0
+        for i in range(chunk_start, chunk_end):
+            t = self._gt_tactics[i]
+            if t is None:
+                continue
+            attack_count += 1
+            counts[t] = counts.get(t, 0) + 1
+        if not counts:
+            return None, attack_count, max(1, chunk_end - chunk_start)
+        major_tactic = max(counts.items(), key=lambda kv: kv[1])[0]
+        return major_tactic, attack_count, max(1, chunk_end - chunk_start)
+
     def _first_attack_pos(self):
         for i, e in enumerate(self.stream_events):
             if int(e.get("gt_attack_active", 0)) == 1:
@@ -552,37 +566,41 @@ class StreamThreatEnv:
                 self._last_non_wait_action = ("end", tactic)
 
         pred_tactic = self.active_tactic
-        step_f1 = 0.0
-        span = max(1, chunk_end - chunk_start)
+        chunk_gt_tactic, chunk_attack_count, span = self._chunk_gt_summary(chunk_start, chunk_end)
+        attack_ratio = float(chunk_attack_count) / float(span)
+
+        # Chunk-step reward: preserve RL with chunk decision unit (no impossible per-event conflict penalty explosion).
+        step_f1 = self._f1_for_labels(
+            pred_tactic,
+            chunk_gt_tactic,
+            benign_match_reward=self.cfg.benign_match_reward,
+        )
+        reward += self.cfg.event_f1_reward_scale * step_f1
+        self._reward_terms["event_f1_reward"] += self.cfg.event_f1_reward_scale * step_f1
+        if chunk_gt_tactic is not None and pred_tactic is None:
+            # Missed attack penalty weighted by attack occupancy in this chunk.
+            miss = self.cfg.missed_attack_step_penalty * attack_ratio
+            reward -= miss
+            self._reward_terms["missed_attack_penalty"] -= miss
+        elif chunk_gt_tactic is None and pred_tactic is not None:
+            # Pure benign chunk but predicted attack.
+            reward -= self.cfg.false_attack_step_penalty
+            self._reward_terms["false_attack_penalty"] -= self.cfg.false_attack_step_penalty
+        elif chunk_gt_tactic is not None and pred_tactic is not None and step_f1 <= 1e-8:
+            mismatch = self.cfg.attack_mismatch_penalty * attack_ratio
+            reward -= mismatch
+            self._reward_terms["attack_mismatch_penalty"] -= mismatch
+
         for i in range(chunk_start, chunk_end):
             gt_tactic_i = self._gt_tactics[i]
-            f1_i = self._f1_for_labels(pred_tactic, gt_tactic_i, benign_match_reward=self.cfg.benign_match_reward)
-            step_f1 += f1_i
-            reward += self.cfg.event_f1_reward_scale * f1_i
-            self._reward_terms["event_f1_reward"] += self.cfg.event_f1_reward_scale * f1_i
-            if gt_tactic_i is not None and pred_tactic is None:
-                # Strongly discourage "always WAIT/empty" behavior during true attack windows.
-                reward -= self.cfg.missed_attack_step_penalty
-                self._reward_terms["missed_attack_penalty"] -= self.cfg.missed_attack_step_penalty
-            elif gt_tactic_i is None and pred_tactic is not None:
-                # Discourage over-triggering attack state on benign windows.
-                reward -= self.cfg.false_attack_step_penalty
-                self._reward_terms["false_attack_penalty"] -= self.cfg.false_attack_step_penalty
-            elif gt_tactic_i is not None and pred_tactic is not None and f1_i <= 1e-8:
-                # Extra penalty for completely wrong active tactic set on attack windows.
-                reward -= self.cfg.attack_mismatch_penalty
-                self._reward_terms["attack_mismatch_penalty"] -= self.cfg.attack_mismatch_penalty
-
             if gt_tactic_i is not None:
                 self._attack_step_stats["attack_steps"] += 1
                 if pred_tactic is not None:
                     self._attack_step_stats["attack_steps_with_pred"] += 1
                 if pred_tactic == gt_tactic_i:
                     self._attack_step_stats["attack_steps_with_overlap"] += 1
-
             self._pred_trace.append([pred_tactic] if pred_tactic is not None else [])
             self._gt_trace.append([gt_tactic_i] if gt_tactic_i is not None else [])
-        step_f1 /= float(span)
 
         moved = self._advance()
         if not moved:
