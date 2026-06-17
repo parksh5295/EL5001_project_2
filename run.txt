@@ -85,3 +85,8 @@ results/stream_compare_summary_runs.json
 results/stream_compare_summary_runs.csv
 results/stream_runs_summary.json
 results/stream_events_runs.ndjson
+
+그룹별 tactic 5회 일괄 실행 (요청 preset)
+./run_all_compare_runs_group5.sh
+출력 루트:
+results/group5_runs
