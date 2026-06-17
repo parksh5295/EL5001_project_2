@@ -27,6 +27,8 @@ SPLIT_MODE="source"
 SPLIT_RATIO="0.7,0.15,0.15"
 MIN_CONFIDENCE="medium"
 USE_TACTICS=""
+ATTACK_RUNS_MAX="3"
+INTRA_RUN_BENIGN_PROB="0.15"
 SEED="42"
 TABULAR_EPISODES="1000"
 DEEP_EPISODES="1000"
@@ -46,6 +48,8 @@ while [[ $# -gt 0 ]]; do
     --split-ratio) SPLIT_RATIO="$2"; shift 2 ;;
     --min-confidence) MIN_CONFIDENCE="$2"; shift 2 ;;
     --use-tactics) USE_TACTICS="$2"; shift 2 ;;
+    --attack-runs-max) ATTACK_RUNS_MAX="$2"; shift 2 ;;
+    --intra-run-benign-prob) INTRA_RUN_BENIGN_PROB="$2"; shift 2 ;;
     --seed) SEED="$2"; shift 2 ;;
     --tabular-episodes) TABULAR_EPISODES="$2"; shift 2 ;;
     --deep-episodes) DEEP_EPISODES="$2"; shift 2 ;;
@@ -109,6 +113,8 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
     --split-ratio "$SPLIT_RATIO" \
     --min-confidence "$MIN_CONFIDENCE" \
     --use-tactics "$USE_TACTICS" \
+    --attack-runs-max "$ATTACK_RUNS_MAX" \
+    --intra-run-benign-prob "$INTRA_RUN_BENIGN_PROB" \
     --seed "$SEED"
 else
   if [[ ! -f "$STREAM_OUT" ]]; then
