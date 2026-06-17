@@ -72,6 +72,12 @@ Run 단위 삽입형 stream 파이프라인 (기존 stream_builder 대체형)
 ./run_all_compare_runs.sh --split-mode source --split-ratio "0.7,0.15,0.15" --num-streams 3000 --events-per-stream 120 --min-confidence medium --decision-stride 16 --tabular-episodes 3000 --deep-episodes 3000 --eval-episodes 100
    (기본: 모든 tactic 사용, 일부만 쓰려면 --use-tactics "Credential Access,Discovery")
    (공격 삽입 강도 조절: --attack-runs-max 2 --intra-run-benign-prob 0.05)
+   (run 품질 상향: --min-confidence high)
+   사용 가능한 tactic:
+   AutomatedTestingTools, Command and Control, Credential Access, Defense Evasion, Discovery, Execution, Lateral Movement, Persistence, Privilege Escalation
+   tactic 지정 시 결과 파일명 자동 분리:
+   results/stream_compare_summary_runs_tactics_<tactic_slug>.json
+   results/stream_compare_summary_runs_tactics_<tactic_slug>.csv
 2) 결과 파일(별도 저장)
 results/stream_compare_summary_runs.json
 results/stream_compare_summary_runs.csv

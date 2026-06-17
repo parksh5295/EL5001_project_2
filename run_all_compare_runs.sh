@@ -35,13 +35,14 @@ DEEP_EPISODES="1000"
 EVAL_EPISODES="30"
 DECISION_STRIDE="1"
 SKIP_BUILD="false"
+USER_SET_STREAM_OUT="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --input-events) INPUT_EVENTS="$2"; shift 2 ;;
     --weak-labeled-out) WEAK_LABELED_OUT="$2"; shift 2 ;;
     --runs-out) RUNS_OUT="$2"; shift 2 ;;
-    --stream-out) STREAM_OUT="$2"; shift 2 ;;
+    --stream-out) STREAM_OUT="$2"; USER_SET_STREAM_OUT="true"; shift 2 ;;
     --num-streams) NUM_STREAMS="$2"; shift 2 ;;
     --events-per-stream) EVENTS_PER_STREAM="$2"; shift 2 ;;
     --split-mode) SPLIT_MODE="$2"; shift 2 ;;
@@ -65,6 +66,19 @@ done
 
 mkdir -p results checkpoints
 
+TACTIC_SUFFIX=""
+if [[ -n "$USE_TACTICS" ]]; then
+  # Make a stable, filesystem-safe suffix so tactic-specific runs do not overwrite each other.
+  TACTIC_SUFFIX="$(echo "$USE_TACTICS" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g' | sed -E 's/^_+|_+$//g')"
+  if [[ -n "$TACTIC_SUFFIX" ]]; then
+    TACTIC_SUFFIX="_tactics_${TACTIC_SUFFIX}"
+  fi
+fi
+
+if [[ -n "$TACTIC_SUFFIX" && "$USER_SET_STREAM_OUT" != "true" ]]; then
+  STREAM_OUT="results/stream_events_runs${TACTIC_SUFFIX}.ndjson"
+fi
+
 stream_dir="$(dirname "$STREAM_OUT")"
 stream_base="$(basename "$STREAM_OUT")"
 if [[ "$stream_base" == *.* ]]; then
@@ -77,6 +91,9 @@ fi
 TRAIN_STREAM_OUT="${stream_dir}/${stream_stem}_train${stream_ext}"
 VAL_STREAM_OUT="${stream_dir}/${stream_stem}_val${stream_ext}"
 TEST_STREAM_OUT="${stream_dir}/${stream_stem}_test${stream_ext}"
+COMPARE_SUMMARY_JSON="results/stream_compare_summary_runs${TACTIC_SUFFIX}.json"
+COMPARE_SUMMARY_CSV="results/stream_compare_summary_runs${TACTIC_SUFFIX}.csv"
+RUNS_STREAM_SUMMARY_JSON="results/stream_runs_summary${TACTIC_SUFFIX}.json"
 
 if [[ ! -d ".venv" ]]; then
   echo "[prep] .venv가 없어 setup_pipenv.sh 실행"
@@ -106,7 +123,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
     --events-input "$WEAK_LABELED_OUT" \
     --runs-input "$RUNS_OUT" \
     --output "$STREAM_OUT" \
-    --summary-json results/stream_runs_summary.json \
+    --summary-json "$RUNS_STREAM_SUMMARY_JSON" \
     --num-streams "$NUM_STREAMS" \
     --events-per-stream "$EVENTS_PER_STREAM" \
     --split-mode "$SPLIT_MODE" \
@@ -140,10 +157,10 @@ echo "[4/4] Run stream comparison experiments"
   --tabular-episodes "$TABULAR_EPISODES" \
   --deep-episodes "$DEEP_EPISODES" \
   --eval-episodes "$EVAL_EPISODES" \
-  --output-json "results/stream_compare_summary_runs.json" \
-  --output-csv "results/stream_compare_summary_runs.csv"
+  --output-json "$COMPARE_SUMMARY_JSON" \
+  --output-csv "$COMPARE_SUMMARY_CSV"
 
 echo "Done."
-echo "Summary JSON: results/stream_compare_summary_runs.json"
-echo "Summary CSV : results/stream_compare_summary_runs.csv"
+echo "Summary JSON: $COMPARE_SUMMARY_JSON"
+echo "Summary CSV : $COMPARE_SUMMARY_CSV"
 
