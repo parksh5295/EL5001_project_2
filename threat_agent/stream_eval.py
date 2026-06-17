@@ -152,7 +152,7 @@ class StreamEval:
         episode_returns = []
         episode_steps = []
         btp = bfp = bfn = 0
-        action_wait = action_start = action_end = action_invalid = 0
+        action_wait = action_wait_unsure = action_hold_active = action_start = action_end = action_invalid = 0
         reward_terms_sum = Counter()
         attack_steps = attack_steps_with_pred = attack_steps_with_overlap = 0
 
@@ -165,6 +165,9 @@ class StreamEval:
             bfp += int(rec.get("boundary_fp", 0))
             bfn += int(rec.get("boundary_fn", 0))
             ac = rec.get("action_counts", {})
+            action_wait_unsure += int(ac.get("wait_unsure", 0))
+            action_hold_active += int(ac.get("hold_active", 0))
+            # backward compatibility for older runs
             action_wait += int(ac.get("wait", 0))
             action_start += int(ac.get("start", 0))
             action_end += int(ac.get("end", 0))
@@ -243,8 +246,11 @@ class StreamEval:
         accuracy = exact_match_total / total_steps if total_steps else 0.0
         balanced_accuracy = mean(recalls_for_bal_acc) if recalls_for_bal_acc else 0.0
         macro_f1 = mean(f1_for_macro) if f1_for_macro else 0.0
+        action_wait = action_wait + action_wait_unsure + action_hold_active
         total_actions = action_wait + action_start + action_end
         action_wait_ratio = action_wait / total_actions if total_actions else 0.0
+        action_wait_unsure_ratio = action_wait_unsure / total_actions if total_actions else 0.0
+        action_hold_active_ratio = action_hold_active / total_actions if total_actions else 0.0
         action_start_ratio = action_start / total_actions if total_actions else 0.0
         action_end_ratio = action_end / total_actions if total_actions else 0.0
         invalid_action_ratio = action_invalid / total_actions if total_actions else 0.0
@@ -274,6 +280,8 @@ class StreamEval:
             "majority_gain": accuracy - majority_baseline_accuracy,
             "avg_detection_delay": None,
             "action_wait_ratio": action_wait_ratio,
+            "action_wait_unsure_ratio": action_wait_unsure_ratio,
+            "action_hold_active_ratio": action_hold_active_ratio,
             "action_start_ratio": action_start_ratio,
             "action_end_ratio": action_end_ratio,
             "invalid_action_ratio": invalid_action_ratio,

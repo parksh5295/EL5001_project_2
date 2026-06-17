@@ -43,6 +43,7 @@ class StreamEnvConfig:
     boundary_tolerance: int = 1
     invalid_op_penalty: float = 0.3
     wait_cost: float = 0.1
+    hold_cost: float = 0.02
     action_toggle_cost: float = 0.2
     flip_flop_penalty: float = 1.0
     event_id_bins: list[int] | None = None
@@ -51,9 +52,10 @@ class StreamEnvConfig:
 
 class StreamThreatEnv:
     """Action space:
-    0: WAIT
-    1..N: START_<tactic_i>
-    N+1..2N: END_<tactic_i>
+    0: WAIT_UNSURE
+    1: HOLD_ACTIVE
+    2..N+1: START_<tactic_i>
+    N+2..2N+1: END_<tactic_i>
     """
 
     def __init__(
@@ -207,11 +209,11 @@ class StreamThreatEnv:
         self.event_id_bins = self.cfg.event_id_bins or DEFAULT_EVENT_ID_BINS
         # weak ratios(3) + tactic ratios + event histogram + progress(2)
         self.state_size = 3 + len(self.tactics) + len(self.event_id_bins) + 1 + 2
-        self.action_size = 1 + 2 * len(self.tactics)
-        self.action_to_op: dict[int, tuple[str, str | None]] = {0: ("wait", None)}
+        self.action_size = 2 + 2 * len(self.tactics)
+        self.action_to_op: dict[int, tuple[str, str | None]] = {0: ("wait_unsure", None), 1: ("hold_active", None)}
         for i, tactic in enumerate(self.tactics):
-            self.action_to_op[1 + i] = ("start", tactic)
-            self.action_to_op[1 + len(self.tactics) + i] = ("end", tactic)
+            self.action_to_op[2 + i] = ("start", tactic)
+            self.action_to_op[2 + len(self.tactics) + i] = ("end", tactic)
 
         self.current_stream: dict[str, Any] | None = None
         self.stream_events: list[dict] = []
@@ -230,12 +232,13 @@ class StreamThreatEnv:
             "event_f1_reward": 0.0,
             "boundary_bonus": 0.0,
             "wait_penalty": 0.0,
+            "hold_penalty": 0.0,
             "invalid_op_penalty": 0.0,
             "missed_attack_penalty": 0.0,
             "false_attack_penalty": 0.0,
             "attack_mismatch_penalty": 0.0,
         }
-        self._action_counts = {"wait": 0, "start": 0, "end": 0, "invalid": 0}
+        self._action_counts = {"wait_unsure": 0, "hold_active": 0, "start": 0, "end": 0, "invalid": 0}
         self._attack_step_stats = {
             "attack_steps": 0,
             "attack_steps_with_pred": 0,
@@ -306,6 +309,7 @@ class StreamThreatEnv:
             "event_f1_reward": 0.0,
             "boundary_bonus": 0.0,
             "wait_penalty": 0.0,
+            "hold_penalty": 0.0,
             "toggle_cost": 0.0,
             "flip_flop_penalty": 0.0,
             "invalid_op_penalty": 0.0,
@@ -313,7 +317,7 @@ class StreamThreatEnv:
             "false_attack_penalty": 0.0,
             "attack_mismatch_penalty": 0.0,
         }
-        self._action_counts = {"wait": 0, "start": 0, "end": 0, "invalid": 0}
+        self._action_counts = {"wait_unsure": 0, "hold_active": 0, "start": 0, "end": 0, "invalid": 0}
         self._attack_step_stats = {
             "attack_steps": 0,
             "attack_steps_with_pred": 0,
@@ -424,15 +428,16 @@ class StreamThreatEnv:
     def get_action_mask(self):
         """Return action validity mask for current state."""
         mask = np.zeros(self.action_size, dtype=np.float32)
-        mask[0] = 1.0  # WAIT always valid
+        mask[0] = 1.0 if self.active_tactic is None else 0.0  # WAIT_UNSURE
+        mask[1] = 1.0 if self.active_tactic is not None else 0.0  # HOLD_ACTIVE
         n = len(self.tactics)
         for i, tactic in enumerate(self.tactics):
             # START valid only when no tactic is active.
             if self.active_tactic is None:
-                mask[1 + i] = 1.0
+                mask[2 + i] = 1.0
             # END valid only for currently active tactic.
             if self.active_tactic == tactic:
-                mask[1 + n + i] = 1.0
+                mask[2 + n + i] = 1.0
         return mask
 
     def step(self, action: int):
@@ -450,10 +455,15 @@ class StreamThreatEnv:
         boundary_hit = False
         invalid_op = False
 
-        if op == "wait":
+        if op == "wait_unsure":
             reward -= self.cfg.wait_cost
             self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
-            self._action_counts["wait"] += 1
+            self._action_counts["wait_unsure"] += 1
+            self._last_non_wait_action = None
+        elif op == "hold_active":
+            reward -= self.cfg.hold_cost
+            self._reward_terms["hold_penalty"] -= self.cfg.hold_cost
+            self._action_counts["hold_active"] += 1
             self._last_non_wait_action = None
         elif op == "start":
             if tactic is None or self.active_tactic is not None:
@@ -461,10 +471,15 @@ class StreamThreatEnv:
                 reward -= self.cfg.invalid_op_penalty
                 self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
                 self._action_counts["invalid"] += 1
-                # Invalid action is converted to WAIT to prevent invalid-action loops.
-                reward -= self.cfg.wait_cost
-                self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
-                self._action_counts["wait"] += 1
+                # Invalid action is converted to WAIT/HOLD to prevent invalid-action loops.
+                if self.active_tactic is None:
+                    reward -= self.cfg.wait_cost
+                    self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
+                    self._action_counts["wait_unsure"] += 1
+                else:
+                    reward -= self.cfg.hold_cost
+                    self._reward_terms["hold_penalty"] -= self.cfg.hold_cost
+                    self._action_counts["hold_active"] += 1
                 self._last_non_wait_action = None
             else:
                 reward -= self.cfg.action_toggle_cost
@@ -488,10 +503,15 @@ class StreamThreatEnv:
                 reward -= self.cfg.invalid_op_penalty
                 self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
                 self._action_counts["invalid"] += 1
-                # Invalid action is converted to WAIT to prevent invalid-action loops.
-                reward -= self.cfg.wait_cost
-                self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
-                self._action_counts["wait"] += 1
+                # Invalid action is converted to WAIT/HOLD to prevent invalid-action loops.
+                if self.active_tactic is None:
+                    reward -= self.cfg.wait_cost
+                    self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
+                    self._action_counts["wait_unsure"] += 1
+                else:
+                    reward -= self.cfg.hold_cost
+                    self._reward_terms["hold_penalty"] -= self.cfg.hold_cost
+                    self._action_counts["hold_active"] += 1
                 self._last_non_wait_action = None
             else:
                 reward -= self.cfg.action_toggle_cost

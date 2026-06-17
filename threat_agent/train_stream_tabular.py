@@ -175,12 +175,14 @@ def print_seglog(tag: str, metric: dict):
     print(
         "[SEGLOG] {} "
         "micro_f1={:.4f} boundary_f1={:.4f} "
-        "wait={:.3f} start={:.3f} end={:.3f} invalid={:.3f} "
+        "wait={:.3f}(u={:.3f},h={:.3f}) start={:.3f} end={:.3f} invalid={:.3f} "
         "atk_cov={:.3f} atk_hit={:.3f}".format(
             tag,
             float(metric.get("event_micro_f1", 0.0)),
             float(metric.get("segment_boundary_f1", 0.0)),
             float(metric.get("action_wait_ratio", 0.0)),
+            float(metric.get("action_wait_unsure_ratio", 0.0)),
+            float(metric.get("action_hold_active_ratio", 0.0)),
             float(metric.get("action_start_ratio", 0.0)),
             float(metric.get("action_end_ratio", 0.0)),
             float(metric.get("invalid_action_ratio", 0.0)),
