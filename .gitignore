@@ -6,6 +6,8 @@ results/*
 !results/.gitkeep
 checkpoints/*
 !checkpoints/.gitkeep
+result_5group_addfolder/*
+!result_5group_addfolder/.gitkeep
 
 lesson/
 
@@ -13,6 +15,11 @@ lesson/
 
 3D_animation.py
 
+
+*.zip
+
+result_5group/
+README_report.md
 
 
 
