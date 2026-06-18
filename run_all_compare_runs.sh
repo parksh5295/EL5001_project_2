@@ -113,6 +113,8 @@ COMPARE_SUMMARY_JSON="${OUTPUT_DIR}/stream_compare_summary_runs${TACTIC_SUFFIX}.
 COMPARE_SUMMARY_CSV="${OUTPUT_DIR}/stream_compare_summary_runs${TACTIC_SUFFIX}.csv"
 RUNS_STREAM_SUMMARY_JSON="${OUTPUT_DIR}/stream_runs_summary${TACTIC_SUFFIX}.json"
 WEAK_LABEL_SUMMARY_JSON="${OUTPUT_DIR}/events_weak_label_summary.json"
+CHECKPOINTS_DIR="${OUTPUT_DIR}/checkpoints"
+mkdir -p "$CHECKPOINTS_DIR"
 
 if [[ ! -d ".venv" ]]; then
   echo "[prep] .venv가 없어 setup_pipenv.sh 실행"
@@ -176,11 +178,14 @@ echo "[4/4] Run stream comparison experiments"
   --tabular-episodes "$TABULAR_EPISODES" \
   --deep-episodes "$DEEP_EPISODES" \
   --eval-episodes "$EVAL_EPISODES" \
+  --metrics-dir "$OUTPUT_DIR" \
+  --checkpoints-dir "$CHECKPOINTS_DIR" \
   --output-json "$COMPARE_SUMMARY_JSON" \
   --output-csv "$COMPARE_SUMMARY_CSV"
 
 echo "Done."
 echo "Output Dir  : $OUTPUT_DIR"
+echo "Checkpoints : $CHECKPOINTS_DIR"
 echo "Summary JSON: $COMPARE_SUMMARY_JSON"
 echo "Summary CSV : $COMPARE_SUMMARY_CSV"
 

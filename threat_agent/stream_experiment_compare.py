@@ -33,6 +33,18 @@ def parse_args():
     p.add_argument("--deep-episodes", type=int, default=1500)
     p.add_argument("--eval-episodes", type=int, default=100)
     p.add_argument("--decision-stride", type=int, default=1)
+    p.add_argument(
+        "--metrics-dir",
+        type=Path,
+        default=None,
+        help="Directory for intermediate metrics json files.",
+    )
+    p.add_argument(
+        "--checkpoints-dir",
+        type=Path,
+        default=None,
+        help="Directory for saved model checkpoints (.pt).",
+    )
     p.add_argument("--output-json", type=Path, default=Path("results/stream_compare_summary.json"))
     p.add_argument("--output-csv", type=Path, default=Path("results/stream_compare_summary.csv"))
     return p.parse_args()
@@ -42,7 +54,10 @@ def main():
     args = parse_args()
     py = sys.executable
     root = Path(__file__).resolve().parents[1]
-    out_dir = root / "results"
+    out_dir = args.metrics_dir if args.metrics_dir is not None else (root / "results")
+    ckpt_dir = args.checkpoints_dir if args.checkpoints_dir is not None else (root / "checkpoints")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     tab_path = out_dir / "stream_tabular_metrics.json"
     dqn_path = out_dir / "stream_dqn_metrics.json"
@@ -95,7 +110,7 @@ def main():
             "--decision-stride",
             str(args.decision_stride),
             "--save-model",
-            str(root / "checkpoints" / "stream_dqn.pt"),
+            str(ckpt_dir / "stream_dqn.pt"),
             "--metrics-output",
             str(dqn_path),
         ]
@@ -117,7 +132,7 @@ def main():
             "--decision-stride",
             str(args.decision_stride),
             "--save-model",
-            str(root / "checkpoints" / "stream_reinforce.pt"),
+            str(ckpt_dir / "stream_reinforce.pt"),
             "--metrics-output",
             str(rf_path),
         ]
@@ -139,7 +154,7 @@ def main():
             "--decision-stride",
             str(args.decision_stride),
             "--save-model",
-            str(root / "checkpoints" / "stream_a2c.pt"),
+            str(ckpt_dir / "stream_a2c.pt"),
             "--metrics-output",
             str(a2c_path),
         ]
