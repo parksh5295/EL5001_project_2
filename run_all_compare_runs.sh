@@ -30,6 +30,7 @@ TABULAR_EPISODES="1000"
 DEEP_EPISODES="1000"
 EVAL_EPISODES="30"
 DECISION_STRIDE="1"
+TRACE_MAX_EVAL_EPISODES="100"
 SKIP_BUILD="false"
 USER_SET_STREAM_OUT="false"
 USER_SET_OUTPUT_DIR="false"
@@ -55,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     --deep-episodes) DEEP_EPISODES="$2"; shift 2 ;;
     --eval-episodes) EVAL_EPISODES="$2"; shift 2 ;;
     --decision-stride) DECISION_STRIDE="$2"; shift 2 ;;
+    --trace-max-eval-episodes) TRACE_MAX_EVAL_EPISODES="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD="true"; shift 1 ;;
     *)
       echo "Unknown option: $1" >&2
@@ -114,7 +116,13 @@ COMPARE_SUMMARY_CSV="${OUTPUT_DIR}/stream_compare_summary_runs${TACTIC_SUFFIX}.c
 RUNS_STREAM_SUMMARY_JSON="${OUTPUT_DIR}/stream_runs_summary${TACTIC_SUFFIX}.json"
 WEAK_LABEL_SUMMARY_JSON="${OUTPUT_DIR}/events_weak_label_summary.json"
 CHECKPOINTS_DIR="${OUTPUT_DIR}/checkpoints"
+EVAL_HISTORY_DIR="${OUTPUT_DIR}/eval_history"
+STEP_TRACES_DIR="${OUTPUT_DIR}/step_traces"
 mkdir -p "$CHECKPOINTS_DIR"
+mkdir -p "$EVAL_HISTORY_DIR"
+if [[ "$TRACE_MAX_EVAL_EPISODES" -gt 0 ]]; then
+  mkdir -p "$STEP_TRACES_DIR"
+fi
 
 if [[ ! -d ".venv" ]]; then
   echo "[prep] .venv가 없어 setup_pipenv.sh 실행"
@@ -180,12 +188,19 @@ echo "[4/4] Run stream comparison experiments"
   --eval-episodes "$EVAL_EPISODES" \
   --metrics-dir "$OUTPUT_DIR" \
   --checkpoints-dir "$CHECKPOINTS_DIR" \
+  --eval-history-dir "$EVAL_HISTORY_DIR" \
+  --trace-dir "$STEP_TRACES_DIR" \
+  --trace-max-eval-episodes "$TRACE_MAX_EVAL_EPISODES" \
   --output-json "$COMPARE_SUMMARY_JSON" \
   --output-csv "$COMPARE_SUMMARY_CSV"
 
 echo "Done."
 echo "Output Dir  : $OUTPUT_DIR"
 echo "Checkpoints : $CHECKPOINTS_DIR"
+echo "EvalHistory : $EVAL_HISTORY_DIR"
+if [[ "$TRACE_MAX_EVAL_EPISODES" -gt 0 ]]; then
+  echo "StepTraces  : $STEP_TRACES_DIR"
+fi
 echo "Summary JSON: $COMPARE_SUMMARY_JSON"
 echo "Summary CSV : $COMPARE_SUMMARY_CSV"
 

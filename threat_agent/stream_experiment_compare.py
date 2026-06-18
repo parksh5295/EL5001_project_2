@@ -45,6 +45,24 @@ def parse_args():
         default=None,
         help="Directory for saved model checkpoints (.pt).",
     )
+    p.add_argument(
+        "--eval-history-dir",
+        type=Path,
+        default=None,
+        help="Directory for per-episode eval history jsonl files.",
+    )
+    p.add_argument(
+        "--trace-dir",
+        type=Path,
+        default=None,
+        help="Directory for compressed per-step trace files (.jsonl.gz).",
+    )
+    p.add_argument(
+        "--trace-max-eval-episodes",
+        type=int,
+        default=0,
+        help="How many eval episodes per split to store step traces for (0 disables).",
+    )
     p.add_argument("--output-json", type=Path, default=Path("results/stream_compare_summary.json"))
     p.add_argument("--output-csv", type=Path, default=Path("results/stream_compare_summary.csv"))
     return p.parse_args()
@@ -56,8 +74,13 @@ def main():
     root = Path(__file__).resolve().parents[1]
     out_dir = args.metrics_dir if args.metrics_dir is not None else (root / "results")
     ckpt_dir = args.checkpoints_dir if args.checkpoints_dir is not None else (root / "checkpoints")
+    eval_hist_dir = args.eval_history_dir if args.eval_history_dir is not None else (out_dir / "eval_history")
+    trace_dir = args.trace_dir if args.trace_dir is not None else (out_dir / "step_traces")
     out_dir.mkdir(parents=True, exist_ok=True)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
+    eval_hist_dir.mkdir(parents=True, exist_ok=True)
+    if args.trace_max_eval_episodes > 0:
+        trace_dir.mkdir(parents=True, exist_ok=True)
 
     tab_path = out_dir / "stream_tabular_metrics.json"
     dqn_path = out_dir / "stream_dqn_metrics.json"
@@ -113,6 +136,12 @@ def main():
             str(ckpt_dir / "stream_dqn.pt"),
             "--metrics-output",
             str(dqn_path),
+            "--eval-history-output",
+            str(eval_hist_dir / "stream_dqn_eval_history.jsonl"),
+            "--trace-output-dir",
+            str(trace_dir),
+            "--trace-max-eval-episodes",
+            str(args.trace_max_eval_episodes),
         ]
         + split_stream_args
     )
@@ -135,6 +164,12 @@ def main():
             str(ckpt_dir / "stream_reinforce.pt"),
             "--metrics-output",
             str(rf_path),
+            "--eval-history-output",
+            str(eval_hist_dir / "stream_reinforce_eval_history.jsonl"),
+            "--trace-output-dir",
+            str(trace_dir),
+            "--trace-max-eval-episodes",
+            str(args.trace_max_eval_episodes),
         ]
         + split_stream_args
     )
@@ -157,6 +192,12 @@ def main():
             str(ckpt_dir / "stream_a2c.pt"),
             "--metrics-output",
             str(a2c_path),
+            "--eval-history-output",
+            str(eval_hist_dir / "stream_a2c_eval_history.jsonl"),
+            "--trace-output-dir",
+            str(trace_dir),
+            "--trace-max-eval-episodes",
+            str(args.trace_max_eval_episodes),
         ]
         + split_stream_args
     )
