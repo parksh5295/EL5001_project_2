@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Train tabular baselines (MC/SARSA/Q-learning) on StreamThreatEnv."""
 
 from __future__ import annotations
 
@@ -193,7 +192,7 @@ def print_seglog(tag: str, metric: dict):
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train stream tabular algorithms.")
+    p = argparse.ArgumentParser(description="Train tabular stream RL.")
     p.add_argument("--stream-data", type=Path, default=Path("results/stream_events.ndjson"))
     p.add_argument("--train-stream-data", type=Path, default=None)
     p.add_argument("--val-stream-data", type=Path, default=None)

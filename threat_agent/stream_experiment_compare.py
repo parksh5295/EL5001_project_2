@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Run full comparison on stream RL environment."""
 
 from __future__ import annotations
 
@@ -37,31 +36,31 @@ def parse_args():
         "--metrics-dir",
         type=Path,
         default=None,
-        help="Directory for intermediate metrics json files.",
+        help="metrics json output dir",
     )
     p.add_argument(
         "--checkpoints-dir",
         type=Path,
         default=None,
-        help="Directory for saved model checkpoints (.pt).",
+        help="checkpoint dir (.pt)",
     )
     p.add_argument(
         "--eval-history-dir",
         type=Path,
         default=None,
-        help="Directory for per-episode eval history jsonl files.",
+        help="eval history jsonl dir",
     )
     p.add_argument(
         "--trace-dir",
         type=Path,
         default=None,
-        help="Directory for compressed per-step trace files (.jsonl.gz).",
+        help="step trace dir (.jsonl.gz)",
     )
     p.add_argument(
         "--trace-max-eval-episodes",
         type=int,
         default=0,
-        help="How many eval episodes per split to store step traces for (0 disables).",
+        help="eval episodes to save traces (0=off)",
     )
     p.add_argument("--output-json", type=Path, default=Path("results/stream_compare_summary.json"))
     p.add_argument("--output-csv", type=Path, default=Path("results/stream_compare_summary.csv"))

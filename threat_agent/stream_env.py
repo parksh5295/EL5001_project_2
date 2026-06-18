@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Stream RL environment using mixed stream_events.ndjson."""
 
 from __future__ import annotations
 
@@ -52,12 +51,6 @@ class StreamEnvConfig:
 
 
 class StreamThreatEnv:
-    """Action space:
-    0: WAIT_UNSURE
-    1: HOLD_ACTIVE
-    2..N+1: START_<tactic_i>
-    N+2..2N+1: END_<tactic_i>
-    """
 
     def __init__(
         self,
@@ -76,7 +69,6 @@ class StreamThreatEnv:
         has_predefined_split = True
         tactic_set: set[str] = set()
 
-        # Pass 1: detect split tagging and collect global tactic label space
         with self.stream_path.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -94,7 +86,6 @@ class StreamThreatEnv:
         if not has_any_row:
             raise ValueError(f"No stream rows in {self.stream_path}")
 
-        # Pass 2: build per-stream byte range index so we can lazy-load stream events on reset().
         all_streams: list[dict[str, Any]] = []
         seen_stream_ids: set[str] = set()
         current_sid: str | None = None
@@ -152,7 +143,6 @@ class StreamThreatEnv:
                 )
 
         if non_contiguous:
-            # Fallback for legacy datasets where a stream_id appears in multiple distant chunks.
             by_stream: dict[str, list[dict]] = {}
             with self.stream_path.open("r", encoding="utf-8") as f:
                 for line in f:
@@ -175,7 +165,6 @@ class StreamThreatEnv:
         if has_predefined_split:
             if split not in {"train", "val", "test"}:
                 raise ValueError(f"Unknown split: {split}")
-            # all_streams are already filtered by split in pass 2.
             self.streams = all_streams
             if not self.streams:
                 raise ValueError(f"No streams found for split='{split}' in dataset_split-tagged data.")
@@ -186,7 +175,6 @@ class StreamThreatEnv:
             else:
                 n_train = max(1, int(n * split_ratio[0]))
                 n_val = max(1, int(n * split_ratio[1]))
-                # ensure at least one sample for test split
                 while n_train + n_val >= n and n_train > 1:
                     n_train -= 1
                 while n_train + n_val >= n and n_val > 1:
@@ -204,11 +192,9 @@ class StreamThreatEnv:
             else:
                 raise ValueError(f"Unknown split: {split}")
             if not self.streams:
-                # fallback for very small datasets: evaluate on full set
                 self.streams = all_streams
 
         self.event_id_bins = self.cfg.event_id_bins or DEFAULT_EVENT_ID_BINS
-        # weak ratios(3) + tactic ratios + event histogram + progress(2)
         self.state_size = 3 + len(self.tactics) + len(self.event_id_bins) + 1 + 2
         self.action_size = 2 + 2 * len(self.tactics)
         self.action_to_op: dict[int, tuple[str, str | None]] = {0: ("wait_unsure", None), 1: ("hold_active", None)}
@@ -434,7 +420,6 @@ class StreamThreatEnv:
         return any(abs(self.idx - p) <= tol for p in points)
 
     def _is_boundary_in_chunk(self, points: set[int], chunk_start: int, chunk_end: int) -> bool:
-        # chunk_end is exclusive, but boundary points for segment end can be equal to len(stream).
         tol = max(0, int(self.cfg.boundary_tolerance))
         lo = chunk_start - tol
         hi = chunk_end + tol
@@ -460,16 +445,13 @@ class StreamThreatEnv:
         }
 
     def get_action_mask(self):
-        """Return action validity mask for current state."""
         mask = np.zeros(self.action_size, dtype=np.float32)
-        mask[0] = 1.0 if self.active_tactic is None else 0.0  # WAIT_UNSURE
-        mask[1] = 1.0 if self.active_tactic is not None else 0.0  # HOLD_ACTIVE
+        mask[0] = 1.0 if self.active_tactic is None else 0.0
+        mask[1] = 1.0 if self.active_tactic is not None else 0.0
         n = len(self.tactics)
         for i, tactic in enumerate(self.tactics):
-            # START valid only when no tactic is active.
             if self.active_tactic is None:
                 mask[2 + i] = 1.0
-            # END valid only for currently active tactic.
             if self.active_tactic == tactic:
                 mask[2 + n + i] = 1.0
         return mask
@@ -506,7 +488,6 @@ class StreamThreatEnv:
                 reward -= self.cfg.invalid_op_penalty
                 self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
                 self._action_counts["invalid"] += 1
-                # Invalid action is converted to WAIT/HOLD to prevent invalid-action loops.
                 if self.active_tactic is None:
                     reward -= self.cfg.wait_cost
                     self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
@@ -538,7 +519,6 @@ class StreamThreatEnv:
                 reward -= self.cfg.invalid_op_penalty
                 self._reward_terms["invalid_op_penalty"] -= self.cfg.invalid_op_penalty
                 self._action_counts["invalid"] += 1
-                # Invalid action is converted to WAIT/HOLD to prevent invalid-action loops.
                 if self.active_tactic is None:
                     reward -= self.cfg.wait_cost
                     self._reward_terms["wait_penalty"] -= self.cfg.wait_cost
@@ -569,7 +549,6 @@ class StreamThreatEnv:
         chunk_gt_tactic, chunk_attack_count, span = self._chunk_gt_summary(chunk_start, chunk_end)
         attack_ratio = float(chunk_attack_count) / float(span)
 
-        # Chunk-step reward: preserve RL with chunk decision unit (no impossible per-event conflict penalty explosion).
         step_f1 = self._f1_for_labels(
             pred_tactic,
             chunk_gt_tactic,
@@ -578,12 +557,10 @@ class StreamThreatEnv:
         reward += self.cfg.event_f1_reward_scale * step_f1
         self._reward_terms["event_f1_reward"] += self.cfg.event_f1_reward_scale * step_f1
         if chunk_gt_tactic is not None and pred_tactic is None:
-            # Missed attack penalty weighted by attack occupancy in this chunk.
             miss = self.cfg.missed_attack_step_penalty * attack_ratio
             reward -= miss
             self._reward_terms["missed_attack_penalty"] -= miss
         elif chunk_gt_tactic is None and pred_tactic is not None:
-            # Pure benign chunk but predicted attack.
             reward -= self.cfg.false_attack_step_penalty
             self._reward_terms["false_attack_penalty"] -= self.cfg.false_attack_step_penalty
         elif chunk_gt_tactic is not None and pred_tactic is not None and step_f1 <= 1e-8:
@@ -630,7 +607,6 @@ class StreamThreatEnv:
             for t in self.tactics:
                 expected = len(self._gt_start_points.get(t, set())) + len(self._gt_end_points.get(t, set()))
                 matched = min(expected, self._boundary_tp)
-                # conservative residual estimate
                 self._boundary_fn += max(0, expected - matched)
             info["episode_pred_trace"] = self._pred_trace
             info["episode_gt_trace"] = self._gt_trace

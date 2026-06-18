@@ -1,26 +1,4 @@
 #!/usr/bin/env python3
-"""Build Threat Investigation episodes from EVTX files.
-
-Output format (JSON):
-{
-  "tactics": [...],
-  "event_id_bins": [...],
-  "episodes": [
-    {
-      "source_file": "...evtx",
-      "relative_path": "...",
-      "tactic": "Privilege Escalation",
-      "cards": {
-        "process": [...],
-        "registry": [...],
-        "network": [...],
-        "user": [...]
-      },
-      "all_event_ids": [...]
-    }
-  ]
-}
-"""
 
 from __future__ import annotations
 
@@ -49,7 +27,6 @@ TACTIC_DIRS = {
 SKIP_DIRS = {".git", "EVTX_ATT&CK_Metadata", "winlogbeat", ".vscode"}
 CATEGORY_ORDER = ("process", "registry", "network", "user")
 
-# Fixed bins for state vector histogram
 DEFAULT_EVENT_ID_BINS = [
     1,
     3,
@@ -306,37 +283,37 @@ def build_episode(evtx_path: Path, repo_root: Path, Evtx) -> dict:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build Threat Investigation episode dataset from EVTX.")
+    parser = argparse.ArgumentParser(description="build dataset from EVTX")
     parser.add_argument(
         "--evtx-root",
         type=Path,
         default=Path("evtx_samples"),
-        help="Directory to scan for EVTX files.",
+        help="EVTX root dir",
     )
     parser.add_argument(
         "--evtx-lib-dir",
         type=Path,
         default=Path("evtx_samples/EVTX_ATT&CK_Metadata"),
-        help="Path that contains Evtx parser package.",
+        help="Evtx parser path",
     )
     parser.add_argument(
         "-o",
         "--output",
         type=Path,
         default=Path("results/threat_agent_data.json"),
-        help="Output dataset JSON path.",
+        help="output JSON",
     )
     parser.add_argument(
         "--max-files",
         type=int,
         default=0,
-        help="Optional cap on number of EVTX files for quick experiments (0 means all).",
+        help="max EVTX files (0=all)",
     )
     parser.add_argument(
         "--exclude",
         nargs="*",
         default=[],
-        help="EVTX file names to skip.",
+        help="files to skip",
     )
     return parser.parse_args()
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Baselines for StreamThreatEnv."""
 
 from __future__ import annotations
 
@@ -17,11 +16,9 @@ def random_policy(env: StreamThreatEnv, info: dict):
 
 
 def heuristic_policy(env: StreamThreatEnv, state: np.ndarray, threshold: float = 0.25):
-    # state layout: weak ratios [attack, benign, unknown], ...
     attack_ratio = state[0]
     benign_ratio = state[1]
     if attack_ratio >= threshold:
-        # declare first attack tactic as heuristic
         return 2
     if benign_ratio >= 0.8:
         return 1

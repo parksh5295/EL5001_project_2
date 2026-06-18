@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Train a policy-gradient agent (REINFORCE) for Threat Investigation Agent."""
 
 from __future__ import annotations
 
@@ -75,7 +74,7 @@ def evaluate(policy: PolicyNet, env: ThreatInvestigationEnv, episodes: int, devi
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train REINFORCE on Threat Investigation Agent.")
+    p = argparse.ArgumentParser(description="train REINFORCE")
     p.add_argument("--dataset", type=Path, default=Path("results/threat_agent_data.json"))
     p.add_argument("--episodes", type=int, default=3000)
     p.add_argument("--max-steps", type=int, default=12)
@@ -135,7 +134,6 @@ def main():
 
         returns = discounted_returns(rewards, args.gamma)
         returns_t = torch.tensor(returns, dtype=torch.float32, device=device)
-        # Normalize returns for lower variance (safe for short trajectories)
         if returns_t.numel() > 1:
             std = returns_t.std(unbiased=False)
             returns_t = (returns_t - returns_t.mean()) / (std + 1e-8)

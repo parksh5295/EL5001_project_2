@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Metrics for stream-level segment evaluation."""
 
 from __future__ import annotations
 
@@ -81,7 +80,6 @@ class StreamEval:
         majority_label, majority_count = true_counter.most_common(1)[0]
         majority_acc = majority_count / n
 
-        # delay stats on attack streams where attack correctly declared
         delays = [
             r["detection_delay"]
             for r in self.records
@@ -167,7 +165,6 @@ class StreamEval:
             ac = rec.get("action_counts", {})
             action_wait_unsure += int(ac.get("wait_unsure", 0))
             action_hold_active += int(ac.get("hold_active", 0))
-            # backward compatibility for older runs
             action_wait += int(ac.get("wait", 0))
             action_start += int(ac.get("start", 0))
             action_end += int(ac.get("end", 0))

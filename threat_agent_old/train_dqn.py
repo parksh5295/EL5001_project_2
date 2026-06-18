@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Train a lightweight DQN agent for Threat Investigation Agent."""
 
 from __future__ import annotations
 
@@ -94,7 +93,7 @@ def evaluate(policy_net: QNet, env: ThreatInvestigationEnv, episodes: int, devic
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train DQN on Threat Investigation Agent environment.")
+    p = argparse.ArgumentParser(description="train DQN")
     p.add_argument("--dataset", type=Path, default=Path("results/threat_agent_data.json"))
     p.add_argument("--episodes", type=int, default=2000)
     p.add_argument("--max-steps", type=int, default=12)
@@ -127,7 +126,7 @@ def main():
         invalid_action_penalty=0.25,
         correct_declare_reward=10.0,
         wrong_declare_penalty=10.0,
-        reveal_success_prob=0.9,  # stochastic reveal to satisfy project condition
+        reveal_success_prob=0.9,
         seed=args.seed,
     )
     train_env = ThreatInvestigationEnv(args.dataset, split="train", config=cfg)

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Extract source-timeline run candidates for inspection.
-
-This script intentionally reports multiple run definitions:
-1) weak_attack_runs: contiguous weak_label == attack-like
-2) deterministic_attack_runs: contiguous scenario_tactic != benign/unknown
-3) deterministic_tactic_runs: contiguous same non-benign scenario_tactic
-"""
+# Summarize per-source timeline runs (weak / deterministic definitions).
 
 from __future__ import annotations
 
@@ -31,12 +25,12 @@ class EventRow:
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Summarize per-source timeline runs.")
+    p = argparse.ArgumentParser(description="Summarize per-source runs.")
     p.add_argument("--input", type=Path, default=Path("results/events_weak_labeled.ndjson"))
     p.add_argument("--output-json", type=Path, default=Path("results/source_run_summary.json"))
     p.add_argument("--output-ndjson", type=Path, default=Path("results/source_runs.ndjson"))
     p.add_argument("--min-run-len", type=int, default=1)
-    p.add_argument("--merge-gap", type=int, default=0, help="Merge adjacent weak runs if gap <= this size.")
+    p.add_argument("--merge-gap", type=int, default=0, help="merge weak runs if gap <= N")
     p.add_argument("--top-k-sources", type=int, default=50)
     return p.parse_args()
 
@@ -50,7 +44,7 @@ def _norm_tactic(raw: object) -> str:
 
 def _parse_event_id(raw: object) -> int | None:
     try:
-        return int(raw)  # type: ignore[arg-type]
+        return int(raw)
     except Exception:
         return None
 

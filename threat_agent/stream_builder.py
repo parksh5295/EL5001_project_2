@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Build quasi-realistic mixed event streams from weak-labeled events.
-
-Creates stream episodes by interleaving:
-- attack events (from EVTX source_file blocks)
-- benign-like background events
-"""
 
 from __future__ import annotations
 
@@ -20,7 +14,7 @@ SPLITS = ("train", "val", "test")
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Build mixed stream episodes from weak-labeled events.")
+    p = argparse.ArgumentParser(description="Build mixed stream episodes.")
     p.add_argument("--input", type=Path, default=Path("results/events_weak_labeled.ndjson"))
     p.add_argument("--output", type=Path, default=Path("results/stream_events.ndjson"))
     p.add_argument("--summary-json", type=Path, default=Path("results/stream_summary.json"))
@@ -35,26 +29,24 @@ def parse_args():
         "--split-mode",
         choices=("source", "event"),
         default="source",
-        help="How to assign events to train/val/test before stream generation.",
+        help="train/val/test assignment before stream generation.",
     )
     p.add_argument(
         "--split-ratio",
         type=str,
         default="0.7,0.15,0.15",
-        help="Comma-separated train,val,test ratios.",
+        help="train,val,test ratios (comma-separated).",
     )
     return p.parse_args()
 
 
 def _sort_key(event: dict):
-    # time is often a string; fallback to source order if unavailable
     return (str(event.get("time") or ""), int(event.get("event_id") or 0))
 
 
 def _sample_block_events(rng: random.Random, block: list[dict], max_events: int) -> list[dict]:
     if len(block) <= max_events:
         return [deepcopy(e) for e in block]
-    # pick contiguous slice to keep local temporal consistency
     start = rng.randint(0, len(block) - max_events)
     return [deepcopy(e) for e in block[start : start + max_events]]
 
@@ -251,13 +243,12 @@ def main():
 
                     stream_pos += 1
                     ev_for_stream = deepcopy(ev)
-                    # Keep scenario tactic only as hidden ground truth (reward/eval), not as observation payload.
                     ev_for_stream.pop("scenario_tactic", None)
                     out = {
                         "stream_id": stream_id,
                         "dataset_split": split_name,
                         "stream_pos": stream_pos,
-                        "synthetic_time": stream_pos,  # monotonic synthetic timestamp
+                        "synthetic_time": stream_pos,
                         "gt_attack_active": gt_attack_active,
                         "gt_tactic": gt_tactic,
                         **ev_for_stream,
@@ -274,7 +265,6 @@ def main():
                     stream_pos += 1
                     ev = deepcopy(rng.choice(background_pool))
                     ev_for_stream = deepcopy(ev)
-                    # Keep scenario tactic only as hidden ground truth (reward/eval), not as observation payload.
                     ev_for_stream.pop("scenario_tactic", None)
                     out = {
                         "stream_id": stream_id,

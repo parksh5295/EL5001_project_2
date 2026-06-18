@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""Tabular control baselines for Threat Investigation Agent.
-
-Algorithms:
-- Monte Carlo Control (first-visit)
-- SARSA
-- Q-learning
-"""
 
 from __future__ import annotations
 
@@ -18,7 +11,6 @@ import numpy as np
 from threat_agent.metrics import EvalAccumulator
 
 def discretize_state(state: np.ndarray, bins: int = 10) -> tuple[int, ...]:
-    """Discretize continuous state vector into a hashable tuple."""
     clipped = np.clip(state, 0.0, 1.0)
     return tuple(np.floor(clipped * bins).astype(np.int32).tolist())
 
@@ -79,7 +71,6 @@ class MonteCarloControlAgent(BaseTabularAgent):
                 state, info = nstate, ninfo
                 done = terminated or truncated
 
-            # first-visit MC update
             g = 0.0
             visited = set()
             for key, action, reward in reversed(trajectory):

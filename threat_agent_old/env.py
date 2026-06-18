@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Threat Investigation Agent environment (Gym-style API without hard dependency)."""
 
 from __future__ import annotations
 
@@ -30,13 +29,6 @@ class EnvConfig:
 
 
 class ThreatInvestigationEnv:
-    """Minimal environment for Threat Investigation MDP.
-
-    Action space:
-      0..3                      -> Investigate category (process/registry/network/user)
-      4..(4 + num_tactics - 1)  -> Declare tactic
-    """
-
     def __init__(
         self,
         dataset_path: str | Path,
@@ -54,7 +46,6 @@ class ThreatInvestigationEnv:
         self.event_id_bins: list[int] = data.get("event_id_bins", [])
         episodes = data["episodes"]
 
-        # deterministic split by sorted source_file for reproducibility
         episodes = sorted(episodes, key=lambda x: x["source_file"])
         n = len(episodes)
         if n < 3:
@@ -107,16 +98,13 @@ class ThreatInvestigationEnv:
         return {c: len(self.current_episode["cards"][c]) for c in CATEGORY_ORDER}
 
     def get_action_mask(self) -> np.ndarray:
-        """1 for valid actions, 0 for invalid."""
         totals = self._card_totals()
         mask = np.ones(self.action_size, dtype=np.float32)
 
-        # Investigate actions: valid only if more cards remain
         for idx, cat in enumerate(CATEGORY_ORDER):
             if self.revealed_index[cat] >= totals[cat]:
                 mask[idx] = 0.0
 
-        # Declare actions always valid
         return mask
 
     def _event_histogram(self) -> np.ndarray:
@@ -231,7 +219,6 @@ class ThreatInvestigationEnv:
 
         truncated = False
         if not terminated and self.step_count >= self.config.max_steps:
-            # force end if no declaration
             reward -= self.config.wrong_declare_penalty
             terminated = True
             truncated = True

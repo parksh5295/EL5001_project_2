@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Run multi-algorithm comparison experiments for Threat Investigation Agent."""
 
 from __future__ import annotations
 
@@ -23,7 +22,7 @@ def run_command(command: list[str]):
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Run comparison experiments across multiple algorithms.")
+    p = argparse.ArgumentParser(description="compare algorithms")
     p.add_argument("--dataset", type=Path, default=Path("results/threat_agent_data.json"))
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--tabular-episodes", type=int, default=2000)
@@ -39,7 +38,6 @@ def main():
     py = sys.executable
     root = Path(__file__).resolve().parents[1]
 
-    # 1) tabular baselines
     tab_path = root / "results" / "tabular_metrics.json"
     run_command(
         [
@@ -65,7 +63,6 @@ def main():
     reinforce_metric_path = root / "results" / "reinforce_metrics.json"
     a2c_metric_path = root / "results" / "a2c_metrics.json"
 
-    # 2) deep value-based
     run_command(
         [
             py,
@@ -86,7 +83,6 @@ def main():
         ]
     )
 
-    # 3) deep policy-based
     run_command(
         [
             py,

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Train A2C baseline for Threat Investigation Agent."""
 
 from __future__ import annotations
 
@@ -68,7 +67,7 @@ def evaluate(model: ActorCritic, env: ThreatInvestigationEnv, episodes: int, dev
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train A2C on Threat Investigation Agent.")
+    p = argparse.ArgumentParser(description="train A2C")
     p.add_argument("--dataset", type=Path, default=Path("results/threat_agent_data.json"))
     p.add_argument("--episodes", type=int, default=2500)
     p.add_argument("--max-steps", type=int, default=12)
@@ -133,7 +132,6 @@ def main():
             dones.append(1.0 if done else 0.0)
             s = ns
 
-        # bootstrap value at final state (0 for terminal)
         returns = []
         g = 0.0
         for r, d in zip(reversed(rewards), reversed(dones)):

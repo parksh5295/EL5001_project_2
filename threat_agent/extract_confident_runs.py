@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Extract run candidates from source timelines with multi-signal confidence."""
 
 from __future__ import annotations
 
@@ -48,7 +47,7 @@ class EventRow:
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Extract confident attack runs from source timelines.")
+    p = argparse.ArgumentParser(description="Extract confident attack runs.")
     p.add_argument("--input", type=Path, default=Path("results/events_weak_labeled.ndjson"))
     p.add_argument("--output-ndjson", type=Path, default=Path("results/confident_runs.ndjson"))
     p.add_argument("--output-json", type=Path, default=Path("results/confident_runs_summary.json"))
@@ -70,7 +69,6 @@ def _parse_dt(raw: object) -> datetime | None:
     s = str(raw or "").strip()
     if not s:
         return None
-    # Support "YYYY-mm-dd HH:MM:SS.ffffff" style.
     try:
         return datetime.fromisoformat(s)
     except Exception:
@@ -79,7 +77,7 @@ def _parse_dt(raw: object) -> datetime | None:
 
 def _parse_int(raw: object) -> int | None:
     try:
-        return int(raw)  # type: ignore[arg-type]
+        return int(raw)
     except Exception:
         return None
 
@@ -223,7 +221,6 @@ def main():
                     low_streak = 0
                 continue
 
-            # in run: evaluate end conditions
             should_end = False
             if gap is not None and gap > args.max_gap_sec:
                 should_end = True

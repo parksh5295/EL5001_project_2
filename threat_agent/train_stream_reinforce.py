@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Train REINFORCE on StreamThreatEnv."""
 
 from __future__ import annotations
 

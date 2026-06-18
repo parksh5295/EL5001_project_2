@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""Animate step traces on a 2D embedding with evolving decision boundary."""
 
 from __future__ import annotations
-
 import argparse
 import gzip
 import json
@@ -21,50 +19,50 @@ from sklearn.preprocessing import StandardScaler
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="2D embedding animation for trace dynamics.")
-    p.add_argument("--trace", type=Path, required=True, help="Input .jsonl.gz step trace")
+    p = argparse.ArgumentParser(description="2D trace embedding animation.")
+    p.add_argument("--trace", type=Path, required=True, help="input .jsonl.gz trace")
     p.add_argument(
         "--episode-idx",
         type=int,
         default=-1,
-        help="Eval episode index. -1 means auto-pick dynamic episode.",
+        help="-1 = auto-pick episode",
     )
     p.add_argument("--embedding", choices=("tsne", "pca"), default="tsne")
     p.add_argument(
         "--fit-label",
         choices=("pred", "gt"),
         default="gt",
-        help="Which label to use when fitting evolving boundary.",
+        help="label for boundary fit (pred or gt)",
     )
     p.add_argument(
         "--fit-scope",
         choices=("global_prefix", "episode_prefix", "global_full"),
         default="global_full",
-        help="Boundary fit source: all episodes up to current step, or selected episode only.",
+        help="boundary fit scope",
     )
     p.add_argument(
         "--boundary-model",
         choices=("knn", "logreg"),
         default="knn",
-        help="Decision boundary estimator in embedding space.",
+        help="boundary model (knn or logreg)",
     )
-    p.add_argument("--knn-k", type=int, default=15, help="k for knn boundary model.")
+    p.add_argument("--knn-k", type=int, default=15, help="k for knn")
     p.add_argument(
         "--traj-tail",
         type=int,
         default=6,
-        help="Number of recent steps to emphasize as trajectory tail.",
+        help="recent steps to highlight",
     )
     p.add_argument(
         "--show-fit-centroids",
         action="store_true",
-        help="Show benign/attack centroids of current boundary fitting set.",
+        help="show fit centroids",
     )
     p.add_argument(
         "--view-mode",
         choices=("full", "boundary_only"),
         default="full",
-        help="full: boundary + trajectory, boundary_only: focus on boundary dynamics.",
+        help="full or boundary_only",
     )
     p.add_argument("--interval-ms", type=int, default=260)
     p.add_argument("--fps", type=int, default=4)
@@ -179,17 +177,14 @@ def fit_boundary(x2: np.ndarray, y: np.ndarray, model_name: str, knn_k: int):
 
 
 def masked_probability_grid(clf, grid: np.ndarray, x_fit: np.ndarray):
-    """Predict boundary probability and mask far-away low-density regions."""
     p = clf.predict_proba(grid)[:, 1]
     if len(x_fit) < 3:
         return p
 
-    # Estimate a local data support radius from k-NN spacing.
     k = min(6, len(x_fit))
     nn_fit = NearestNeighbors(n_neighbors=k)
     nn_fit.fit(x_fit)
     d_fit, _ = nn_fit.kneighbors(x_fit)
-    # Distance to k-th neighbor, then a robust high quantile.
     local_scale = float(np.quantile(d_fit[:, -1], 0.9))
     radius = max(local_scale * 1.8, 0.25)
 
@@ -237,7 +232,6 @@ def main():
         end = frame + 1
         cur = ep_rows[frame]
 
-        # Background: all trace points (gt distribution)
         benign_idx = np.where(y_gt == 0)[0]
         attack_idx = np.where(y_gt == 1)[0]
         ax.scatter(
@@ -261,17 +255,13 @@ def main():
             label="All GT attack",
         )
 
-        # Selected episode trajectory: optionally shown.
         tr = ep_emb[:end]
         if args.view_mode == "full" and len(tr) > 0:
-            # Faded history points
             ax.scatter(tr[:, 0], tr[:, 1], c="#607d8b", s=20, alpha=0.18, label="Episode history")
 
-            # Time-colored points (clear progression cue)
             cvals = np.linspace(0.0, 1.0, len(tr))
             ax.scatter(tr[:, 0], tr[:, 1], c=cvals, cmap="viridis", s=36, alpha=0.95, label="Episode points(time)")
 
-            # Emphasize only recent tail (avoid "always straight line" impression)
             tail = max(2, int(args.traj_tail))
             t0 = max(0, len(tr) - tail)
             tr_tail = tr[t0:]
@@ -284,7 +274,6 @@ def main():
                 label=f"Recent tail({len(tr_tail)})",
             )
 
-            # Direction arrows for recent transitions
             for i in range(1, len(tr_tail)):
                 x0, y0 = tr_tail[i - 1]
                 x1, y1 = tr_tail[i]
@@ -303,7 +292,6 @@ def main():
                 )
             ax.scatter(tr[-1, 0], tr[-1, 1], c="gold", s=180, marker="*", edgecolors="black", zorder=5, label="Current")
 
-        # Evolving boundary from observed prefix
         if args.fit_scope == "global_prefix":
             cur_step = int(cur.get("step_idx", 0))
             fit_idx = np.where(all_step_idx <= cur_step)[0]
@@ -313,7 +301,6 @@ def main():
             fit_idx = np.array(ep_global[:end], dtype=int)
         x_fit = emb[fit_idx]
         y_fit = labels_for_fit[fit_idx]
-        # Show fitting sample cloud to make boundary source explicit.
         fit_b = np.where(y_fit == 0)[0]
         fit_a = np.where(y_fit == 1)[0]
         if len(fit_b):

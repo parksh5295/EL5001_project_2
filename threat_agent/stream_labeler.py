@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""Weak event labeler for EVTX-derived NDJSON.
-
-Input schema example (events.ndjson):
-{
-  "time": "...",
-  "event_id": 3,
-  "provider": "Microsoft-Windows-Sysmon",
-  "process": "powershell.exe",
-  "command_line": "...",
-  "source_file": "...evtx",
-  "scenario_tactic": "Execution",
-  ...
-}
-"""
 
 from __future__ import annotations
 
@@ -76,7 +62,6 @@ def _text(v: object | None) -> str:
 
 
 def label_event(event: dict) -> tuple[str, list[str], list[str]]:
-    """Return (weak_label, weak_rule_ids, weak_tactic_candidates)."""
     rules: list[str] = []
     tactics: list[str] = []
 
@@ -90,7 +75,6 @@ def label_event(event: dict) -> tuple[str, list[str], list[str]]:
     process = _text(event.get("process")).lower()
     cmd = f" {_text(event.get('command_line')).lower()} "
 
-    # Attack-like rules
     if any(tok in cmd for tok in SUSPICIOUS_CMD_TOKENS):
         rules.append("A1_suspicious_command")
     if eid_int == 10:
@@ -102,7 +86,6 @@ def label_event(event: dict) -> tuple[str, list[str], list[str]]:
     if eid_int in {4662, 4672}:
         rules.append("A5_privilege_or_directory_access")
 
-    # Benign-like rules (only if no strong attack-like evidence later)
     benign_rules: list[str] = []
     if eid_int in {4624, 4634}:
         benign_rules.append("B1_logon_logoff")
@@ -114,7 +97,6 @@ def label_event(event: dict) -> tuple[str, list[str], list[str]]:
     if eid_int in TACTIC_HINT_BY_EVENT_ID:
         tactics.append(TACTIC_HINT_BY_EVENT_ID[eid_int])
 
-    # Deduplicate while preserving order
     tactics = list(dict.fromkeys(tactics))
 
     if rules:
@@ -125,7 +107,7 @@ def label_event(event: dict) -> tuple[str, list[str], list[str]]:
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Apply weak labels to NDJSON events.")
+    p = argparse.ArgumentParser(description="Weak-label NDJSON events.")
     p.add_argument("--input", type=Path, default=Path("events.ndjson"))
     p.add_argument("--output", type=Path, default=Path("results/events_weak_labeled.ndjson"))
     p.add_argument(

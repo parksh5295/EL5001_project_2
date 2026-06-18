@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Analyze evidence-card coverage in threat_agent dataset."""
 
 from __future__ import annotations
 
@@ -12,7 +11,7 @@ CATEGORIES = ("process", "registry", "network", "user")
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Analyze evidence coverage in dataset JSON.")
+    p = argparse.ArgumentParser(description="dataset coverage stats")
     p.add_argument("--dataset", type=Path, default=Path("results/threat_agent_data.json"))
     return p.parse_args()
 

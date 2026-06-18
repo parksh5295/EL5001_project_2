@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Plot training/eval curves from eval_history jsonl files."""
 
 from __future__ import annotations
 
@@ -9,7 +8,7 @@ from pathlib import Path
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Plot eval history jsonl files.")
+    p = argparse.ArgumentParser(description="Plot eval history jsonl.")
     p.add_argument("--eval-history-dir", type=Path, required=True)
     p.add_argument("--output-dir", type=Path, default=None)
     p.add_argument(
@@ -22,10 +21,10 @@ def parse_args():
 
 def try_import_matplotlib():
     try:
-        import matplotlib.pyplot as plt  # noqa: PLC0415
+        import matplotlib.pyplot as plt
 
         return plt
-    except Exception as e:  # pragma: no cover
+    except Exception as e:
         raise RuntimeError(
             "matplotlib is required to draw plots. Install it with 'pip install matplotlib'."
         ) from e

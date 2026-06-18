@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Create readable step-trace animations (2D timeline + optional 3D)."""
 
 from __future__ import annotations
 
@@ -16,13 +15,13 @@ from matplotlib.lines import Line2D
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Animate model step traces.")
-    p.add_argument("--trace", type=Path, required=True, help="Input .jsonl.gz trace file")
+    p = argparse.ArgumentParser(description="Animate step traces.")
+    p.add_argument("--trace", type=Path, required=True, help="input .jsonl.gz trace")
     p.add_argument(
         "--episode-idx",
         type=int,
         default=-1,
-        help="Eval episode index in trace. Use -1 to auto-select most dynamic episode.",
+        help="-1 = auto-pick episode",
     )
     p.add_argument("--output", type=Path, default=Path("results/step_trace.gif"))
     p.add_argument("--coord-mode", choices=("state", "timeline"), default="timeline")
@@ -30,7 +29,7 @@ def parse_args():
         "--style",
         choices=("2d", "2d_coord", "3d"),
         default="2d",
-        help="2d is generally more readable for short low-movement traces.",
+        help="2d, 2d_coord, or 3d",
     )
     p.add_argument("--interval-ms", type=int, default=300)
     p.add_argument("--fps", type=int, default=4)
@@ -68,7 +67,6 @@ def choose_episode(episodes: dict[int, list[dict]], requested_idx: int) -> int:
             raise RuntimeError(f"eval_episode_idx={requested_idx} not found in trace")
         return requested_idx
 
-    # Pick most dynamic episode: more pred changes + more attack/pred overlap.
     best_ep = None
     best_score = -math.inf
     for ep, rows in episodes.items():
@@ -151,7 +149,6 @@ def animate_2d(rows: list[dict], args):
         x = steps[:end]
         cur = rows[frame]
 
-        # Panel 1: attack active timeline (GT vs Pred)
         ax0.step(x, gt_attack[:end], where="post", linewidth=2.0, color="#ef5350", label="GT attack")
         ax0.step(x, pred_attack[:end], where="post", linewidth=2.0, color="#42a5f5", label="Pred attack")
         ax0.fill_between(x, 0, gt_attack[:end], color="#ef5350", alpha=0.16, step="post")
@@ -164,7 +161,6 @@ def animate_2d(rows: list[dict], args):
         ax0.grid(alpha=0.3)
         ax0.legend(loc="upper right", fontsize=8)
 
-        # Panel 2: tactic timeline
         ax1.plot(x, gt_y[:end], color="#d32f2f", linewidth=2.2, marker="o", markersize=3, label="GT tactic")
         ax1.plot(
             x,
@@ -185,7 +181,6 @@ def animate_2d(rows: list[dict], args):
         ax1.grid(alpha=0.3)
         ax1.legend(loc="upper right", fontsize=8)
 
-        # Panel 3: reward flow
         ax2.bar(x, rewards[:end], width=0.75, color="#90a4ae", alpha=0.75, label="step reward")
         ax2.plot(x, cum_rewards[:end], color="#2e7d32", linewidth=2.0, marker=".", label="cumulative reward")
         ax2.axvline(float(steps[frame]), color="goldenrod", linestyle="--", linewidth=1.5)
@@ -241,7 +236,6 @@ def animate_2d_coord(rows: list[dict], args):
         y = pos[:end]
         cur = rows[frame]
 
-        # Trajectory on 2D coordinates: x=step_idx, y=stream_pos
         ax0.plot(x, y, color="#1e88e5", linewidth=2.0, label="trajectory")
 
         benign_idx = np.where(gt_attack[:end] == 0)[0]
@@ -255,7 +249,6 @@ def animate_2d_coord(rows: list[dict], args):
         if len(pred_idx):
             ax0.scatter(x[pred_idx], y[pred_idx], c="#42a5f5", s=28, alpha=0.9, label="Pred attack")
 
-        # Current point
         ax0.scatter(x[-1], y[-1], c="gold", s=180, marker="^", edgecolors="black", zorder=5)
         ax0.set_xlim(float(steps.min() - x_pad), float(steps.max() + x_pad))
         ax0.set_ylim(float(pos.min() - y_pad), float(pos.max() + y_pad))
@@ -268,7 +261,6 @@ def animate_2d_coord(rows: list[dict], args):
             fontsize=11,
         )
 
-        # Reward timeline
         ax1.bar(x, rewards[:end], color="#90a4ae", alpha=0.75, width=0.8, label="step reward")
         ax1.plot(x, np.cumsum(rewards[:end]), color="#2e7d32", linewidth=2.0, label="cumulative reward")
         ax1.axvline(float(steps[frame]), color="goldenrod", linestyle="--", linewidth=1.5)

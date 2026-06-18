@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Evaluation metrics for Threat Investigation Agent experiments."""
 
 from __future__ import annotations
 

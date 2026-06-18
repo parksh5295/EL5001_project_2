@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Extract all EVTX files in this repo to a single NDJSON file."""
 
 from __future__ import annotations
 
@@ -172,27 +171,25 @@ def convert_repo(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Convert all EVTX files in this repository to one NDJSON file.",
-    )
+    parser = argparse.ArgumentParser(description="EVTX -> one NDJSON file")
     parser.add_argument(
         "-o",
         "--output",
         type=Path,
         default=DEFAULT_OUTPUT,
-        help=f"Output NDJSON path (default: {DEFAULT_OUTPUT.name})",
+        help=f"output path (default: {DEFAULT_OUTPUT.name})",
     )
     parser.add_argument(
         "--exclude",
         nargs="*",
         default=[],
-        help="EVTX file names to skip (e.g. CA_PetiPotam_etw_rpc_efsr_5_6.evtx)",
+        help="skip these evtx filenames",
     )
     parser.add_argument(
         "--repo-root",
         type=Path,
         default=SCRIPT_DIR,
-        help="Repository root to scan (default: script directory)",
+        help="repo root to scan",
     )
     return parser.parse_args()
 

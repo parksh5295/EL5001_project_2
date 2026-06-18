@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Train DQN on StreamThreatEnv (window observation + declare actions)."""
 
 from __future__ import annotations
 

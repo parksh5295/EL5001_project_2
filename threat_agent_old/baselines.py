@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Baselines for Threat Investigation Agent."""
 
 from __future__ import annotations
 
@@ -18,14 +17,10 @@ def random_valid_action(mask: np.ndarray, rng: np.random.Generator) -> int:
 
 
 def heuristic_action(env: ThreatInvestigationEnv, mask: np.ndarray) -> int:
-    """Simple domain heuristic:
-    network -> process -> registry -> user, then declare most frequent class prior.
-    """
     investigate_priority = [2, 0, 1, 3]
     for act in investigate_priority:
         if mask[act] > 0.0:
             return act
-    # fallback declare first tactic index
     return 4
 
 
@@ -75,7 +70,7 @@ def rollout(
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Run baseline policies for Threat Investigation Agent.")
+    parser = argparse.ArgumentParser(description="run baselines")
     parser.add_argument("--dataset", type=Path, default=Path("results/threat_agent_data.json"))
     parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test"])
     parser.add_argument("--episodes", type=int, default=100)

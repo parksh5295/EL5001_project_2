@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Train tabular RL baselines (MC/SARSA/Q-learning) on Threat Investigation Agent."""
 
 from __future__ import annotations
 
@@ -18,7 +17,7 @@ from threat_agent.tabular_agents import (
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train tabular baselines for Threat Investigation Agent.")
+    p = argparse.ArgumentParser(description="train tabular baselines")
     p.add_argument("--dataset", type=Path, default=Path("results/threat_agent_data.json"))
     p.add_argument("--algorithm", type=str, default="all", choices=["mc", "sarsa", "qlearning", "all"])
     p.add_argument("--episodes", type=int, default=3000)

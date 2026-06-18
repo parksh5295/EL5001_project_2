@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Train A2C on StreamThreatEnv."""
 
 from __future__ import annotations
 

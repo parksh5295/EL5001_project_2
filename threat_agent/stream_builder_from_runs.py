@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Build synthetic streams using extracted run units as attack blocks."""
 
 from __future__ import annotations
 
@@ -16,7 +15,7 @@ CONF_LEVEL = {"low": 0, "medium": 1, "high": 2}
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Build stream episodes from confident run units.")
+    p = argparse.ArgumentParser(description="Build streams from run units.")
     p.add_argument("--events-input", type=Path, default=Path("results/events_weak_labeled.ndjson"))
     p.add_argument("--runs-input", type=Path, default=Path("results/confident_runs.ndjson"))
     p.add_argument("--output", type=Path, default=Path("results/stream_events_runs.ndjson"))
@@ -35,7 +34,7 @@ def parse_args():
         "--use-tactics",
         type=str,
         default="",
-        help="Comma-separated tactic allowlist. Empty means use all tactics.",
+        help="tactic allowlist (comma-separated, empty = all)",
     )
     p.add_argument("--split-mode", choices=("source", "run"), default="source")
     p.add_argument("--split-ratio", type=str, default="0.7,0.15,0.15")
@@ -135,7 +134,6 @@ def attach_run_events(run_rows: list[dict], events_by_source: dict[str, list[dic
             run_events = run_events[:max_events_per_run]
         tactic = str(r.get("dominant_scenario_tactic") or "")
         if not tactic:
-            # fallback: scenario_tactic_counts max
             counts = r.get("scenario_tactic_counts") or {}
             if counts:
                 tactic = max(counts.items(), key=lambda kv: kv[1])[0]
@@ -196,7 +194,6 @@ def choose_split_pools(
             s = sample_split(rng, ratios)
             split_benign[s].append(ev)
 
-    # fallback benign pool if empty
     fallback_bg = [
         ev
         for rows in events_by_source.values()
@@ -270,7 +267,6 @@ def main():
                 chosen_runs = [rng.choice(run_pool) for _ in range(max(1, run_count))]
                 lbl_counter = Counter()
 
-                # optional initial benign gap
                 init_gap = rng.randint(args.benign_gap_min, args.benign_gap_max)
                 for _g in range(init_gap):
                     if stream_pos >= target_n:
@@ -326,7 +322,6 @@ def main():
                         total_written += 1
                         lbl_counter[out.get("weak_label", "unknown")] += 1
 
-                        # inject benign-like events *inside* attack progression
                         if (
                             stream_pos < target_n
                             and args.intra_run_benign_prob > 0
@@ -359,7 +354,6 @@ def main():
                                 total_written += 1
                                 lbl_counter[out_b.get("weak_label", "unknown")] += 1
 
-                    # inter-run benign gap
                     gap = rng.randint(args.benign_gap_min, args.benign_gap_max)
                     for _g in range(gap):
                         if stream_pos >= target_n:
