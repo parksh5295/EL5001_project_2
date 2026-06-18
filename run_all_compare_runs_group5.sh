@@ -22,6 +22,7 @@ GROUP1_TACTICS="Execution,Discovery,Defense Evasion,Command and Control,Automate
 GROUP2_TACTICS="Credential Access,Privilege Escalation"
 GROUP3_TACTICS="Persistence,Lateral Movement"
 GROUP4_TACTICS="Other"
+GROUP4_MIN_CONFIDENCE="low"
 
 # Representative one-per-group (Other excluded)
 # Execution / Credential Access / Persistence
@@ -33,6 +34,7 @@ PLOT_AFTER_EACH_RUN="false"
 run_one() {
   local run_name="$1"
   local tactics="$2"
+  local min_conf="$3"
   local out_dir="results/group5_runs/${run_name}"
   local ckpt_dir="${out_dir}/checkpoints"
   local eval_hist_dir="${out_dir}/eval_history"
@@ -41,6 +43,7 @@ run_one() {
   echo "============================================================"
   echo "[RUN] ${run_name}"
   echo "[TACTICS] ${tactics}"
+  echo "[MIN_CONFIDENCE] ${min_conf}"
   echo "============================================================"
 
   ./run_all_compare_runs.sh \
@@ -48,7 +51,7 @@ run_one() {
     --split-ratio "$SPLIT_RATIO" \
     --num-streams "$NUM_STREAMS" \
     --events-per-stream "$EVENTS_PER_STREAM" \
-    --min-confidence "$MIN_CONFIDENCE" \
+    --min-confidence "$min_conf" \
     --decision-stride "$DECISION_STRIDE" \
     --tabular-episodes "$TABULAR_EPISODES" \
     --deep-episodes "$DEEP_EPISODES" \
@@ -108,13 +111,13 @@ cat > "$EVAL_HISTORY_INDEX" <<'EOF'
 EOF
 
 # 1) Four group runs
-run_one "group1_execution_recon_evasion" "$GROUP1_TACTICS"
-run_one "group2_credential_privilege" "$GROUP2_TACTICS"
-run_one "group3_persistence_lateral" "$GROUP3_TACTICS"
-run_one "group4_residual_other" "$GROUP4_TACTICS"
+run_one "group1_execution_recon_evasion" "$GROUP1_TACTICS" "$MIN_CONFIDENCE"
+run_one "group2_credential_privilege" "$GROUP2_TACTICS" "$MIN_CONFIDENCE"
+run_one "group3_persistence_lateral" "$GROUP3_TACTICS" "$MIN_CONFIDENCE"
+run_one "group4_residual_other" "$GROUP4_TACTICS" "$GROUP4_MIN_CONFIDENCE"
 
 # 2) Representative mixed run (excluding Other)
-run_one "group5_representative_mix" "$REP_TACTICS"
+run_one "group5_representative_mix" "$REP_TACTICS" "$MIN_CONFIDENCE"
 
 echo ""
 echo "All 5 grouped runs completed."

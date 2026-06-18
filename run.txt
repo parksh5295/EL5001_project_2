@@ -111,3 +111,5 @@ results/group5_runs
 인덱스:
 results/group5_runs/checkpoint_paths.txt
 results/group5_runs/eval_history_paths.txt
+메모:
+- 4번째 Other 그룹은 run 확보를 위해 min-confidence를 low로 자동 사용
